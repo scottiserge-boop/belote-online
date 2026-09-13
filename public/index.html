@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#0d3b24" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Belote" />
+<title>Belote en ligne</title>
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icons/icon-192.png" />
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div id="toast" class="toast hidden"></div>
+
+<!-- Écran d'accueil -->
+<section id="screen-home" class="screen">
+  <div class="home-card">
+    <h1>🃏 Belote en ligne</h1>
+    <p class="subtitle">Belote classique à 4 joueurs, en équipes de 2, en temps réel.</p>
+
+    <div class="home-forms">
+      <div class="home-form">
+        <h2>Créer un salon</h2>
+        <label>Votre pseudo
+          <input type="text" id="create-name" maxlength="20" placeholder="Ex : Scotti" />
+        </label>
+        <label>Score cible
+          <select id="create-target">
+            <option value="501" selected>501 points (classique)</option>
+            <option value="301">301 points (partie courte)</option>
+            <option value="1000">1000 points (partie longue)</option>
+          </select>
+        </label>
+        <button id="btn-create">Créer la table</button>
+      </div>
+
+      <div class="home-form">
+        <h2>Rejoindre un salon</h2>
+        <label>Votre pseudo
+          <input type="text" id="join-name" maxlength="20" placeholder="Ex : Scotti" />
+        </label>
+        <label>Code du salon
+          <input type="text" id="join-code" maxlength="4" placeholder="Ex : K7QT" style="text-transform:uppercase" />
+        </label>
+        <button id="btn-join">Rejoindre</button>
+      </div>
+    </div>
+    <p class="error" id="home-error"></p>
+  </div>
+</section>
+
+<!-- Salon d'attente -->
+<section id="screen-lobby" class="screen hidden">
+  <div class="lobby-card">
+    <h2>Salon <span id="lobby-code"></span></h2>
+    <p>Partagez ce code à 3 autres joueurs pour qu'ils rejoignent la table.</p>
+    <ul id="lobby-seats" class="lobby-seats"></ul>
+    <button id="btn-start" disabled>En attente des 4 joueurs…</button>
+  </div>
+</section>
+
+<!-- Table de jeu -->
+<section id="screen-game" class="screen hidden">
+  <header class="game-header">
+    <div class="room-code">Salon <strong id="game-code"></strong></div>
+    <div class="scores">
+      <span class="score-team score-a">Équipe A : <strong id="score-a">0</strong></span>
+      <span class="score-team score-b">Équipe B : <strong id="score-b">0</strong></span>
+      <span class="target">/ <span id="score-target">501</span></span>
+      <span id="hand-subtotal-wrap" class="hand-subtotal hidden">(manche : <strong id="subtotal-a" class="subtotal-a">0</strong>-<strong id="subtotal-b" class="subtotal-b">0</strong>)</span>
+    </div>
+    <div class="hand-info">Manche <span id="hand-number">1</span> · Atout : <span id="trump-indicator">—</span></div>
+    <button id="log-toggle" class="log-toggle" aria-label="Journal de la partie">📜</button>
+  </header>
+
+  <div class="table">
+    <div class="seat seat-top" id="seat-top"></div>
+    <div class="seat seat-left" id="seat-left"></div>
+    <div class="seat seat-right" id="seat-right"></div>
+    <div class="trick-wrap">
+      <div class="trick-area" id="trick-area"></div>
+      <div id="trick-winner-banner" class="trick-winner-banner hidden"></div>
+      <div id="last-trick-panel" class="last-trick-panel hidden">
+        <div class="last-trick-label">Dernier pli</div>
+        <div id="last-trick-cards" class="last-trick-cards"></div>
+      </div>
+    </div>
+    <div class="seat seat-bottom" id="seat-bottom"></div>
+  </div>
+
+  <div id="bidding-panel" class="bidding-panel hidden">
+    <p id="bidding-status">En attente…</p>
+    <div id="retourne-display" class="retourne-display hidden">
+      <span class="retourne-label">Retourne :</span>
+      <div id="retourne-card" class="card"></div>
+    </div>
+
+    <div id="round1-actions" class="round-actions hidden">
+      <button id="btn-take" class="suit-btn">Je prends</button>
+      <button id="btn-pass-1" class="pass-btn">Je passe</button>
+    </div>
+
+    <div id="round2-actions" class="round-actions hidden">
+      <div class="bid-suits">
+        <button class="suit-btn" data-suit="C">♣ Trèfle</button>
+        <button class="suit-btn" data-suit="D">♦ Carreau</button>
+        <button class="suit-btn" data-suit="H">♥ Cœur</button>
+        <button class="suit-btn" data-suit="S">♠ Pique</button>
+      </div>
+      <button id="btn-pass-2" class="pass-btn">Je passe</button>
+    </div>
+  </div>
+
+  <div class="hand-area">
+    <div id="my-hand" class="my-hand"></div>
+  </div>
+
+  <div id="log-panel" class="log-panel hidden"></div>
+</section>
+
+<!-- Fin de manche -->
+<div id="overlay-hand-end" class="overlay hidden">
+  <div class="overlay-card">
+    <h2 id="hand-end-title"></h2>
+    <p id="hand-end-detail"></p>
+    <p id="hand-end-score"></p>
+    <button id="btn-next-hand">Manche suivante</button>
+  </div>
+</div>
+
+<!-- Fin de partie -->
+<div id="overlay-game-over" class="overlay hidden">
+  <div class="overlay-card">
+    <h2 id="game-over-title"></h2>
+    <p id="game-over-score"></p>
+    <button onclick="location.reload()">Nouvelle partie</button>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

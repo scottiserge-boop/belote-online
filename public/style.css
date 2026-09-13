@@ -1,0 +1,347 @@
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  overflow-x: hidden; /* évite tout défilement horizontal parasite sur mobile */
+}
+body {
+  font-family: 'Segoe UI', Roboto, Arial, sans-serif;
+  background: radial-gradient(ellipse at center, #0f4429 0%, #0a2c1c 65%, #071e13 100%);
+  color: #f1f1f1;
+  min-height: 100vh;
+  min-height: 100dvh; /* tient compte des barres d'adresse mobiles qui rétrécissent la vue */
+  -webkit-tap-highlight-color: transparent;
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+.hidden { display: none !important; }
+
+.screen { min-height: 100vh; min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+
+/* L'écran de jeu contient plusieurs blocs (en-tête, table, main) qui doivent
+   s'empiler verticalement en pleine largeur, contrairement aux écrans
+   d'accueil/salon qui centrent une seule carte : on désactive donc ici le
+   centrage flex hérité de .screen. */
+#screen-game.screen {
+  display: block;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 0;
+}
+
+.home-card, .lobby-card {
+  background: #103d28;
+  border-radius: 16px;
+  padding: 32px;
+  max-width: 640px;
+  width: 100%;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+}
+
+.home-card h1 { margin-top: 0; text-align: center; }
+.subtitle { text-align: center; color: #b9d8c4; margin-bottom: 24px; }
+
+.home-forms { display: flex; gap: 24px; flex-wrap: wrap; }
+.home-form { flex: 1 1 240px; background: #0d3020; border-radius: 12px; padding: 16px; }
+.home-form h2 { margin-top: 0; font-size: 1.1rem; }
+.home-form label { display: block; margin-bottom: 12px; font-size: 0.85rem; color: #cfe8d8; }
+.home-form input, .home-form select {
+  width: 100%; padding: 10px; margin-top: 4px; border-radius: 6px; border: none;
+  background: #f4f4f4; color: #111; font-size: 16px; /* évite le zoom auto de Safari iOS au focus */
+}
+button {
+  cursor: pointer; border: 1px solid #8a6a1f; border-radius: 8px; padding: 12px 18px;
+  background: linear-gradient(180deg, #f3da84 0%, #d4af37 45%, #b8912a 100%);
+  color: #2b2205; font-weight: 700; font-size: 0.95rem;
+  min-height: 44px; /* cible tactile confortable au doigt (recommandation iOS/Android) */
+  touch-action: manipulation; /* supprime le délai de 300ms et le double-tap-zoom au tap */
+  -webkit-user-select: none; user-select: none;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.4);
+}
+button:disabled { background: #6b6b58; color: #ccc; cursor: not-allowed; border-color: #555; box-shadow: none; }
+button:hover:not(:disabled) { background: linear-gradient(180deg, #f7e59c, #e8c454 45%, #c7a234 100%); }
+button:active:not(:disabled) { transform: translateY(1px); }
+
+.error { color: #ff8080; min-height: 1.2em; text-align: center; margin-top: 12px; }
+
+.lobby-seats { list-style: none; padding: 0; margin: 16px 0; }
+.lobby-seats li {
+  display: flex; justify-content: space-between; padding: 8px 12px; margin-bottom: 6px;
+  background: #0d3020; border-radius: 8px;
+}
+.lobby-seats .empty { color: #7fa08c; font-style: italic; }
+.lobby-seats .team-tag { font-size: 0.8rem; color: #d4af37; }
+#lobby-code { color: #d4af37; letter-spacing: 2px; }
+#btn-start { width: 100%; margin-top: 8px; }
+
+/* --- Écran de jeu --- */
+.game-header {
+  display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;
+  padding: calc(10px + env(safe-area-inset-top)) 20px 10px;
+  background: linear-gradient(180deg, #123d27 0%, #0a2c1c 100%);
+  border-bottom: 2px solid #6b4423;
+  gap: 12px; font-size: 0.9rem;
+}
+.scores span { margin-right: 14px; }
+.score-a strong { color: #6fc9ff; }
+.score-b strong { color: #ff9e6f; }
+.hand-subtotal { font-size: 0.82rem; color: #cfe8d8; }
+.hand-subtotal .subtotal-a { color: #6fc9ff; }
+.hand-subtotal .subtotal-b { color: #ff9e6f; }
+
+.table {
+  /* Hauteur déterminée par le contenu (sièges + zone de pli), jamais figée
+     en vh : ça évite tout risque de chevauchement si le contenu réel est
+     plus grand que prévu (nom de joueur long, petit écran, etc.). */
+  position: relative;
+  min-height: 260px;
+  margin: 16px auto;
+  max-width: 900px;
+  display: grid;
+  grid-template-rows: auto auto auto;
+  row-gap: 8px;
+  padding: 18px 12px;
+  /* Feutre vert casino, légèrement plus clair au centre pour évoquer un
+     éclairage de table, avec une fine texture de croisillons discrète. */
+  background:
+    repeating-linear-gradient(45deg, rgba(255,255,255,0.02) 0 2px, transparent 2px 6px),
+    radial-gradient(ellipse at center, #1c6e44 0%, #12522f 55%, #0a3620 100%);
+  border: 8px solid #5c3a1e;
+  border-radius: 22px;
+  box-shadow:
+    inset 0 0 0 3px rgba(212,175,55,0.55),
+    inset 0 0 50px rgba(0,0,0,0.45),
+    0 10px 28px rgba(0,0,0,0.5);
+}
+
+.seat {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px;
+}
+.seat-top { grid-row: 1; justify-self: center; }
+.seat-left { position: absolute; left: 0; top: 50%; transform: translateY(-50%); }
+.seat-right { position: absolute; right: 0; top: 50%; transform: translateY(-50%); }
+.seat-bottom { grid-row: 3; justify-self: center; }
+
+.seat-name { font-weight: 600; font-size: 0.9rem; }
+.seat-name.turn { color: #d4af37; text-shadow: 0 0 6px rgba(212,175,55,0.8); }
+.seat-name.disconnected { color: #ff8080; }
+.turn-star { display: inline-block; animation: turn-star-pulse 1s ease-in-out infinite alternate; }
+@keyframes turn-star-pulse {
+  from { transform: scale(1); opacity: 0.75; }
+  to { transform: scale(1.3); opacity: 1; }
+}
+.seat-dealer::after { content: ' 🃟'; }
+.mini-cards { display: flex; }
+.mini-card {
+  width: 20px; height: 30px; margin-left: -10px;
+  border-radius: 4px; border: 1px solid #d4af37;
+  /* Dos de carte façon jeu de club : motif croisé bordeaux + losange doré. */
+  background:
+    linear-gradient(135deg, transparent 46%, rgba(212,175,55,0.8) 46% 54%, transparent 54%),
+    linear-gradient(45deg, transparent 46%, rgba(212,175,55,0.8) 46% 54%, transparent 54%),
+    #7a1f2b;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.45);
+}
+.mini-cards .mini-card:first-child { margin-left: 0; }
+
+.trick-wrap {
+  grid-row: 2;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px;
+}
+
+.trick-area {
+  position: relative;
+  width: 230px;
+  /* Assez haut pour loger 2 cartes (haut+bas) + leurs étiquettes de nom sans
+     chevauchement : hauteur de carte (96) + étiquette (~16) + marge, x2. */
+  height: 260px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 70%);
+  transition: height 0.15s ease;
+}
+/* Rien à afficher (pendant les enchères) : on libère la place verticale. */
+.trick-area.empty { height: 0; min-height: 0; }
+
+.trick-slot {
+  position: absolute;
+  width: 64px;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+}
+.trick-slot.pos-bottom { left: 50%; bottom: 0; transform: translateX(-50%); }
+.trick-slot.pos-top { left: 50%; top: 0; transform: translateX(-50%); }
+.trick-slot.pos-left { left: 0; top: 50%; transform: translateY(-50%); }
+.trick-slot.pos-right { right: 0; top: 50%; transform: translateY(-50%); }
+
+.trick-card {
+  width: 64px; height: 96px; border-radius: 6px; background: #fff; color: #111;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 1.1rem; box-shadow: 0 3px 8px rgba(0,0,0,0.4);
+  border: 3px solid transparent;
+}
+.trick-card.red { color: #c40000; }
+.trick-card.winner {
+  border-color: #d4af37;
+  box-shadow: 0 0 14px rgba(212,175,55,0.85), 0 3px 8px rgba(0,0,0,0.4);
+}
+.trick-slot .from {
+  font-size: 0.7rem; color: #cfe8d8; font-weight: 400; text-align: center;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 90px;
+}
+.trick-slot .from.winner-name { color: #d4af37; font-weight: 700; }
+.trick-slot .from .trophy { margin-left: 2px; }
+
+.trick-winner-banner {
+  background: rgba(212,175,55,0.15);
+  border: 1px solid rgba(212,175,55,0.5);
+  color: #f4d97a;
+  padding: 4px 14px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* Panneau persistant du dernier pli complété, visible même pendant le pli
+   suivant, pour toujours pouvoir vérifier qui a gagné le coup précédent. */
+.last-trick-panel {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  background: rgba(0,0,0,0.2);
+  border: 1px solid rgba(212,175,55,0.35);
+  border-radius: 10px;
+  padding: 6px 10px 8px;
+}
+.last-trick-label {
+  font-size: 0.66rem; color: #cfe8d8; text-transform: uppercase; letter-spacing: 0.04em;
+}
+.last-trick-cards { display: flex; gap: 6px; }
+.last-trick-mini {
+  width: 30px; height: 44px; border-radius: 4px;
+  background: linear-gradient(180deg, #ffffff 0%, #f4f0e6 100%); color: #111;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 0.62rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.35);
+  border: 2px solid transparent;
+}
+.last-trick-mini.red { color: #c40000; }
+.last-trick-mini.winner { border-color: #d4af37; box-shadow: 0 0 6px rgba(212,175,55,0.85); }
+
+.bidding-panel {
+  max-width: 480px; margin: 0 auto 12px; background: #0a2c1c; border-radius: 12px; padding: 16px; text-align: center;
+}
+.retourne-display { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 12px; }
+.retourne-label { color: #cfe8d8; font-size: 0.85rem; }
+.round-actions { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.bid-suits { display: flex; gap: 8px; justify-content: center; margin: 10px 0; flex-wrap: wrap; }
+.suit-btn { background: #1c5c3c; color: #fff; }
+.suit-btn:hover:not(:disabled) { background: #237a4e; }
+.pass-btn { background: #7a2f2f; color: #fff; }
+.pass-btn:hover:not(:disabled) { background: #9c3d3d; }
+
+.hand-area {
+  display: flex; justify-content: center; align-items: flex-end;
+  padding: 6px 0 calc(20px + env(safe-area-inset-bottom));
+}
+
+/* Main en éventail : le conteneur est un simple point d'ancrage relatif ;
+   chaque carte est un ".hand-slot" positionné en absolu et pivoté/décalé
+   par JS (voir renderHand dans app.js), comme un vrai jeu tenu en main. */
+.my-hand {
+  position: relative;
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+}
+.hand-slot {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform-origin: bottom center;
+  transition: transform 0.15s ease;
+}
+.hand-slot:hover { z-index: 999 !important; }
+.hand-slot .card { margin: 0; }
+
+.card {
+  width: 64px; height: 96px; background: linear-gradient(180deg, #ffffff 0%, #f4f0e6 100%);
+  color: #111; border-radius: 8px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 1.2rem; margin: 4px;
+  box-shadow: 0 3px 6px rgba(0,0,0,0.4), inset 0 0 0 1px rgba(0,0,0,0.06);
+  cursor: pointer; transition: transform 0.1s ease, box-shadow 0.1s ease;
+  border: 2px solid transparent;
+  touch-action: manipulation;
+  -webkit-user-select: none; user-select: none;
+  -webkit-touch-callout: none; /* évite le menu contextuel iOS sur appui long */
+}
+.card:hover { transform: translateY(-14px); box-shadow: 0 8px 16px rgba(0,0,0,0.45); }
+.card:active { transform: translateY(-8px) scale(0.97); }
+.card.red { color: #c40000; }
+.card.playable { border-color: rgba(212,175,55,0.55); }
+.card.disabled { opacity: 0.45; cursor: not-allowed; filter: grayscale(0.15); }
+.card.disabled:hover, .card.disabled:active { transform: none; box-shadow: 0 3px 6px rgba(0,0,0,0.4); }
+.card .suit { font-size: 1.4rem; }
+
+/* Le bouton Journal vit dans l'en-tête (pas en position fixe) pour ne
+   jamais risquer de chevaucher la main du joueur en bas de l'écran. */
+.log-toggle {
+  background: #103d28; color: #cfe8d8; padding: 8px 10px; font-size: 1.1rem;
+  min-height: 36px;
+}
+.log-panel {
+  position: fixed;
+  top: calc(56px + env(safe-area-inset-top));
+  right: calc(12px + env(safe-area-inset-right));
+  width: 300px; max-width: 80vw; max-height: 50vh; overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background: #0a2c1c; border-radius: 8px; padding: 10px; font-size: 0.78rem; color: #cfe8d8;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  z-index: 30;
+}
+.log-panel div { margin-bottom: 4px; }
+
+.overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+  display: flex; align-items: center; justify-content: center; z-index: 50;
+}
+.overlay-card {
+  background: #103d28; border-radius: 16px; padding: 32px; text-align: center; max-width: 420px;
+}
+.overlay-card h2 { margin-top: 0; }
+
+.toast {
+  position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+  background: #d4af37; color: #202020; padding: 10px 18px; border-radius: 8px;
+  font-weight: 600; z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+@media (max-width: 640px) {
+  .home-forms { flex-direction: column; }
+  .card { width: 48px; height: 72px; font-size: 1rem; margin: 3px; }
+  /* La zone de pli doit être assez haute pour loger 2 cartes + leurs
+     étiquettes (haut/bas) sans qu'elles ne se chevauchent : hauteur de carte
+     (72) + étiquette (~14) + marge, multiplié par 2 emplacements. */
+  .trick-area { width: 190px; height: 200px; }
+  .trick-slot { width: 48px; gap: 2px; }
+  .trick-area .trick-card { width: 48px; height: 72px; font-size: 1rem; }
+  .trick-slot .from { font-size: 0.65rem; }
+  .game-header { padding: 8px 12px; font-size: 0.8rem; gap: 6px 10px; }
+  .scores span { margin-right: 8px; }
+  .last-trick-mini { width: 24px; height: 36px; font-size: 0.54rem; }
+  .last-trick-label { font-size: 0.6rem; }
+  .hand-subtotal { font-size: 0.74rem; }
+}
+
+/* Petits téléphones (iPhone SE, etc.) : encore un cran plus compact. */
+@media (max-width: 400px) {
+  .card { width: 40px; height: 60px; font-size: 0.85rem; margin: 2px; }
+  .card .suit { font-size: 1.05rem; }
+  .trick-area { width: 160px; height: 172px; }
+  .trick-slot { width: 40px; gap: 1px; }
+  .trick-area .trick-card { width: 40px; height: 60px; font-size: 0.85rem; }
+  .trick-slot .from { font-size: 0.6rem; }
+  .mini-card { width: 16px; height: 24px; margin-left: -8px; }
+  .seat-name { font-size: 0.8rem; }
+  .game-header { font-size: 0.72rem; }
+  .home-card, .lobby-card { padding: 20px; }
+}

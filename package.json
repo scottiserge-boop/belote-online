@@ -1,0 +1,19 @@
+{
+  "name": "belote-online",
+  "version": "1.0.0",
+  "description": "Belote en ligne multijoueur en temps réel (4 joueurs, 2 équipes)",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "test": "node test/simulate.js",
+    "test:integration": "node test/integration.js"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.7.5"
+  }
+}
