@@ -29,6 +29,29 @@ const rooms = new RoomManager();
 // Suivi du moment où un siège est devenu "en attente" (déconnecté et c'est son tour).
 const disconnectedSince = new Map(); // roomId -> Map(seat -> timestamp)
 
+// Suivi du temps de "réflexion" artificiel avant qu'un bot ne tranche une
+// enchère : sans ça, un bot qui doit décider en premier peut prendre la
+// carte retournée en un clin d'œil, ne laissant pas le temps aux autres
+// joueurs de voir quelle carte a été proposée.
+const botBidThink = new Map(); // roomId -> { seat, round, until }
+const BOT_BID_THINK_MIN_MS = 2000;
+const BOT_BID_THINK_MAX_MS = 4000;
+
+// Renvoie true si le bot doit encore patienter ce tick avant d'agir. La
+// première fois qu'on observe ce siège sur ce tour d'enchère, on tire un
+// délai aléatoire (2 à 4 secondes) ; tant qu'il n'est pas écoulé, le bot ne
+// fait rien, ce qui laisse la carte retournée (ou l'état du 2e tour)
+// visible assez longtemps pour être vue.
+function botShouldKeepThinking(game, seat) {
+  const current = botBidThink.get(game.roomId);
+  if (!current || current.seat !== seat || current.round !== game.biddingRound) {
+    const delay = BOT_BID_THINK_MIN_MS + Math.random() * (BOT_BID_THINK_MAX_MS - BOT_BID_THINK_MIN_MS);
+    botBidThink.set(game.roomId, { seat, round: game.biddingRound, until: Date.now() + delay });
+    return true;
+  }
+  return Date.now() < current.until;
+}
+
 function broadcastState(game) {
   for (const player of game.players) {
     if (player && player.connected) {
@@ -253,8 +276,11 @@ function autoplayTick() {
       const seat = game.biddingTurnSeat;
       const player = game.players[seat];
       if (player && player.isBot) {
-        botBid(game, seat);
-        broadcastState(game);
+        if (!botShouldKeepThinking(game, seat)) {
+          botBid(game, seat);
+          botBidThink.delete(game.roomId);
+          broadcastState(game);
+        }
       } else if (player && !player.connected) {
         markAndMaybeAct(game, seat, () => {
           game.bid(seat, 'pass');
@@ -299,7 +325,14 @@ function markAndMaybeAct(game, seat, action) {
 }
 
 setInterval(autoplayTick, AUTOPLAY_CHECK_MS);
-setInterval(() => rooms.pruneEmptyRooms(), 60000);
+setInterval(() => {
+  rooms.pruneEmptyRooms();
+  // Nettoie les temps de réflexion de bots dont le salon a disparu, pour
+  // éviter une fuite mémoire lente sur un serveur qui tourne longtemps.
+  for (const roomId of botBidThink.keys()) {
+    if (!rooms.getRoom(roomId)) botBidThink.delete(roomId);
+  }
+}, 60000);
 
 io.on('connection', (socket) => {
   let currentRoomId = null;
@@ -372,6 +405,7 @@ io.on('connection', (socket) => {
       return;
     }
     if (game.phase === PHASES.LOBBY && game.isFull()) {
+      botBidThink.delete(game.roomId);
       game.startNewHand();
       broadcastState(game);
     }
@@ -381,6 +415,7 @@ io.on('connection', (socket) => {
     const game = rooms.getRoom(currentRoomId);
     if (!game || game.type !== 'belote') return;
     if (game.phase === PHASES.HAND_END) {
+      botBidThink.delete(game.roomId);
       game.startNewHand();
       broadcastState(game);
     }
