@@ -78,6 +78,78 @@ let lastTrumpSuit = null;
 let lastYamsScoreAt = null;
 let selectedGameType = 'belote';
 
+// --- Animation de lancer de dés (Yams) --------------------------------------
+// Le serveur calcule le résultat instantanément ; on retarde volontairement
+// son affichage pour simuler visuellement des dés qui tournent (1 à 3
+// secondes, durée indépendante par dé), plutôt que de montrer le résultat
+// figé immédiatement. Pendant ce temps, les dés gardés (non relancés) ne
+// tournent pas, et les actions (lancer, garder, marquer) sont désactivées.
+let lastYamsState = null;
+let yamsAnimTimer = null;
+let yamsDieAnimEnd = [0, 0, 0, 0, 0]; // horodatage de fin d'animation par dé, 0 = à l'arrêt
+let yamsDieDisplayVal = [0, 0, 0, 0, 0]; // valeur affichée pendant que le dé "tourne"
+let yamsPrevTurnSeat = undefined;
+let yamsPrevHasRolled = false;
+let yamsPrevRollsLeft = null;
+
+function yamsAnyDieAnimating() {
+  return yamsDieAnimEnd.some((t) => t > 0);
+}
+
+// Détecte, en comparant à l'état précédemment reçu, qu'un lancer (1er ou
+// relance) vient de se produire pour le tour en cours — et non un simple
+// changement de tour ou une autre mise à jour d'état.
+function detectNewYamsRoll(state) {
+  const isNewTurn = state.currentTurnSeat !== yamsPrevTurnSeat;
+  if (isNewTurn) {
+    // Nouveau tour : on ne doit rien avoir en cours d'animation.
+    yamsDieAnimEnd = [0, 0, 0, 0, 0];
+    if (yamsAnimTimer) { clearInterval(yamsAnimTimer); yamsAnimTimer = null; }
+  }
+  const justRolled =
+    state.phase === 'playing' &&
+    state.hasRolled &&
+    (isNewTurn ? false : (!yamsPrevHasRolled || state.rollsLeft < yamsPrevRollsLeft));
+  yamsPrevTurnSeat = state.currentTurnSeat;
+  yamsPrevHasRolled = state.hasRolled;
+  yamsPrevRollsLeft = state.rollsLeft;
+  return justRolled;
+}
+
+function startYamsDiceAnimation(state) {
+  const now = Date.now();
+  for (let i = 0; i < 5; i++) {
+    if (state.held[i]) { yamsDieAnimEnd[i] = 0; continue; } // dé gardé : reste affiché tel quel
+    const duration = 1000 + Math.random() * 2000; // 1 à 3 secondes, indépendant par dé
+    yamsDieAnimEnd[i] = now + duration;
+    yamsDieDisplayVal[i] = 1 + Math.floor(Math.random() * 6);
+  }
+  if (yamsAnimTimer) clearInterval(yamsAnimTimer);
+  yamsAnimTimer = setInterval(() => {
+    const t = Date.now();
+    let stillAnimating = false;
+    for (let i = 0; i < 5; i++) {
+      if (yamsDieAnimEnd[i] > 0) {
+        if (t >= yamsDieAnimEnd[i]) {
+          yamsDieAnimEnd[i] = 0;
+        } else {
+          yamsDieDisplayVal[i] = 1 + Math.floor(Math.random() * 6);
+          stillAnimating = true;
+        }
+      }
+    }
+    if (lastYamsState) renderYamsDice(lastYamsState);
+    if (!stillAnimating) {
+      clearInterval(yamsAnimTimer);
+      yamsAnimTimer = null;
+      // Ré-affiche la feuille de score (aperçus, cellules cliquables) une
+      // fois tous les dés arrêtés, puisqu'elle reste désactivée pendant
+      // l'animation.
+      if (lastYamsState) renderYamsScoreSheet(lastYamsState);
+    }
+  }, 90);
+}
+
 // --- Écran d'accueil -------------------------------------------------------
 
 document.querySelectorAll('.game-tab').forEach((btn) => {
@@ -468,9 +540,9 @@ function renderBiddingPanel(state) {
 // avec les points de rupture définis dans style.css pour .card).
 function currentCardSize() {
   const w = window.innerWidth;
-  if (w <= 400) return { w: 54, h: 81 };
-  if (w <= 640) return { w: 66, h: 99 };
-  return { w: 84, h: 126 };
+  if (w <= 400) return { w: 64, h: 96 };
+  if (w <= 640) return { w: 78, h: 117 };
+  return { w: 100, h: 150 };
 }
 
 // Ordre d'affichage des couleurs dans la main : l'atout toujours à gauche
@@ -539,7 +611,7 @@ function renderHand(state) {
   const maxContainerWidth = Math.min(window.innerWidth - 24, 640);
   const desiredStep = cardW * 0.58;
   const overlapStep = n > 1 ? Math.min(desiredStep, (maxContainerWidth - cardW) / (n - 1)) : 0;
-  const arcHeight = cardW <= 54 ? 13 : cardW <= 66 ? 17 : 23;
+  const arcHeight = cardW <= 64 ? 15 : cardW <= 78 ? 20 : 27;
 
   const centerIndex = (n - 1) / 2;
 
@@ -637,6 +709,10 @@ function escapeHtml(str) {
 // --- Rendu du plateau Yams ---------------------------------------------------
 
 function renderYamsGame(state) {
+  lastYamsState = state;
+  const justRolled = detectNewYamsRoll(state);
+  if (justRolled) startYamsDiceAnimation(state);
+
   el('yams-game-code').textContent = state.roomId;
 
   const banner = el('yams-game-over-banner');
@@ -682,17 +758,20 @@ function renderYamsGame(state) {
 function renderYamsDice(state) {
   const container = el('yams-dice');
   container.innerHTML = '';
+  const animating = yamsAnyDieAnimating();
   const myTurn = state.phase === 'playing' && state.currentTurnSeat === state.mySeat;
-  const canRoll = myTurn && state.rollsLeft > 0;
-  const canHold = myTurn && state.hasRolled && state.rollsLeft > 0;
+  const canRoll = myTurn && state.rollsLeft > 0 && !animating;
+  const canHold = myTurn && state.hasRolled && state.rollsLeft > 0 && !animating;
 
   for (let i = 0; i < 5; i++) {
-    const val = state.dice[i];
+    const isAnimating = yamsDieAnimEnd[i] > 0;
+    const val = isAnimating ? yamsDieDisplayVal[i] : state.dice[i];
     const die = document.createElement('div');
     die.className = 'yams-die';
     if (!state.hasRolled || !val) die.classList.add('empty');
-    if (state.held[i]) die.classList.add('held');
+    if (state.held[i] && !isAnimating) die.classList.add('held');
     if (canHold) die.classList.add('clickable');
+    if (isAnimating) die.classList.add('spinning');
     die.textContent = val ? DIE_FACES[val] : '?';
     die.addEventListener('click', () => {
       if (!canHold) return;
@@ -714,7 +793,7 @@ function renderYamsScoreSheet(state) {
   table.innerHTML = '';
   const seats = state.players.map((p, seat) => (p ? seat : null)).filter((s) => s !== null);
   const myTurn = state.phase === 'playing' && state.currentTurnSeat === state.mySeat;
-  const canScore = myTurn && state.hasRolled;
+  const canScore = myTurn && state.hasRolled && !yamsAnyDieAnimating();
 
   const thead = document.createElement('thead');
   const headRow = document.createElement('tr');
