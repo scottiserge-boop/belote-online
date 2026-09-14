@@ -37,12 +37,37 @@ function pickRandomLegalCard(game, seat) {
   return legal[Math.floor(Math.random() * legal.length)];
 }
 
+const BOT_SUITS = ['C', 'D', 'H', 'S'];
+
+// Décision d'enchère très simple pour un siège IA (même logique que les bots
+// utilisés par test/simulate.js) : prend/appelle une couleur avec une
+// certaine probabilité, en forçant une prise après quelques passes pour
+// éviter des redistributions trop fréquentes.
+function botBid(game, seat) {
+  if (game.biddingRound === 1) {
+    const shouldTake = Math.random() < 0.35 || game.biddingPasses >= 3;
+    game.bid(seat, shouldTake ? 'take' : 'pass');
+  } else {
+    const shouldCall = Math.random() < 0.4 || game.biddingPasses >= 3;
+    if (shouldCall) {
+      const options = BOT_SUITS.filter((s) => s !== game.refusedSuit);
+      const suit = options[Math.floor(Math.random() * options.length)];
+      game.bid(seat, 'call', suit);
+    } else {
+      game.bid(seat, 'pass');
+    }
+  }
+}
+
 function autoplayTick() {
   for (const game of rooms.rooms.values()) {
     if (game.phase === PHASES.BIDDING) {
       const seat = game.biddingTurnSeat;
       const player = game.players[seat];
-      if (player && !player.connected) {
+      if (player && player.isBot) {
+        botBid(game, seat);
+        broadcastState(game);
+      } else if (player && !player.connected) {
         markAndMaybeAct(game, seat, () => {
           game.bid(seat, 'pass');
           broadcastState(game);
@@ -51,7 +76,13 @@ function autoplayTick() {
     } else if (game.phase === PHASES.PLAYING) {
       const seat = game.currentTurnSeat;
       const player = game.players[seat];
-      if (player && !player.connected) {
+      if (player && player.isBot) {
+        const card = pickRandomLegalCard(game, seat);
+        if (card) {
+          game.playCard(seat, card.id);
+          broadcastState(game);
+        }
+      } else if (player && !player.connected) {
         markAndMaybeAct(game, seat, () => {
           const card = pickRandomLegalCard(game, seat);
           if (card) {
@@ -101,13 +132,39 @@ io.on('connection', (socket) => {
       return;
     }
     const alreadySeated = game.seatOfSocket(socket.id) !== -1;
-    if (!alreadySeated && game.isFull()) {
+    const cleanName = (name || '').trim();
+    // Une reprise de partie (même pseudo qu'un siège actuellement déconnecté)
+    // doit être acceptée même si le salon affiche déjà 4 sièges occupés.
+    const isReconnect =
+      !alreadySeated &&
+      cleanName &&
+      game.players.some((p) => p && !p.connected && !p.isBot && p.name === cleanName);
+    if (!alreadySeated && !isReconnect && game.isFull()) {
       if (typeof cb === 'function') cb({ ok: false, error: 'Ce salon est déjà complet (4 joueurs).' });
       return;
     }
     const seat = game.addPlayer(socket.id, name);
     socket.join(game.roomId);
     currentRoomId = game.roomId;
+    if (typeof cb === 'function') cb({ ok: true, roomId: game.roomId, seat });
+    broadcastState(game);
+  });
+
+  socket.on('add_bot', ({ roomId } = {}, cb) => {
+    const game = rooms.getRoom(roomId);
+    if (!game) {
+      if (typeof cb === 'function') cb({ ok: false, error: 'Salon introuvable.' });
+      return;
+    }
+    if (game.isFull()) {
+      if (typeof cb === 'function') cb({ ok: false, error: 'Ce salon est déjà complet (4 joueurs).' });
+      return;
+    }
+    const seat = game.addBotPlayer();
+    if (seat === -1) {
+      if (typeof cb === 'function') cb({ ok: false, error: 'Aucune place libre.' });
+      return;
+    }
     if (typeof cb === 'function') cb({ ok: true, roomId: game.roomId, seat });
     broadcastState(game);
   });
