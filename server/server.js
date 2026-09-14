@@ -7,7 +7,8 @@ const express = require('express');
 const { Server } = require('socket.io');
 
 const { RoomManager } = require('./rooms');
-const { PHASES } = require('./game/Game');
+const { PHASES, teamOf } = require('./game/Game');
+const { cardOrderIndex, cardPoints } = require('./game/deck');
 
 const PORT = process.env.PORT || 3000;
 const AUTOPLAY_CHECK_MS = 2500;
@@ -31,32 +32,117 @@ function broadcastState(game) {
   }
 }
 
-function pickRandomLegalCard(game, seat) {
-  const legal = game.legalPlaysFor(seat);
-  if (legal.length === 0) return null;
-  return legal[Math.floor(Math.random() * legal.length)];
-}
-
 const BOT_SUITS = ['C', 'D', 'H', 'S'];
 
-// Décision d'enchère très simple pour un siège IA (même logique que les bots
-// utilisés par test/simulate.js) : prend/appelle une couleur avec une
-// certaine probabilité, en forçant une prise après quelques passes pour
-// éviter des redistributions trop fréquentes.
+// Évalue à quel point une main est riche dans une couleur donnée (utilisé à
+// la fois pour décider de prendre à la retourne et pour choisir la couleur à
+// appeler au 2e tour) : les honneurs d'atout (Valet, 9) pèsent lourd, suivis
+// de l'As et du 10, chaque carte supplémentaire de la couleur ajoutant un peu
+// de valeur (la longueur compte, pas seulement les points).
+function suitStrength(hand, suit) {
+  let score = 0;
+  for (const c of hand) {
+    if (c.suit !== suit) continue;
+    if (c.rank === 'J') score += 3;
+    else if (c.rank === '9') score += 2;
+    else if (c.rank === 'A') score += 1.5;
+    else if (c.rank === '10') score += 1;
+    else score += 0.5;
+  }
+  return score;
+}
+
+// Décision d'enchère pour un siège IA, basée sur la force réelle de la main
+// (plutôt qu'une probabilité fixe) : plus la couleur candidate est riche en
+// atouts potentiels (Valet, 9, longueur...), plus le robot a de chances de
+// prendre/appeler, avec une petite part d'aléa pour rester imprévisible, et
+// une prise forcée après quelques passes pour éviter les redistributions
+// trop fréquentes.
 function botBid(game, seat) {
+  const hand = game.hands[seat];
+  const forced = game.biddingPasses >= 3;
   if (game.biddingRound === 1) {
-    const shouldTake = Math.random() < 0.35 || game.biddingPasses >= 3;
+    const score = suitStrength(hand, game.retourneCard.suit);
+    const takeProb = Math.min(0.92, Math.max(0.06, score / 5));
+    const shouldTake = forced || Math.random() < takeProb;
     game.bid(seat, shouldTake ? 'take' : 'pass');
   } else {
-    const shouldCall = Math.random() < 0.4 || game.biddingPasses >= 3;
+    const options = BOT_SUITS.filter((s) => s !== game.refusedSuit);
+    let bestSuit = options[0];
+    let bestScore = -1;
+    for (const s of options) {
+      const score = suitStrength(hand, s);
+      if (score > bestScore) {
+        bestScore = score;
+        bestSuit = s;
+      }
+    }
+    const callProb = Math.min(0.9, Math.max(0.08, bestScore / 5));
+    const shouldCall = forced || Math.random() < callProb;
     if (shouldCall) {
-      const options = BOT_SUITS.filter((s) => s !== game.refusedSuit);
-      const suit = options[Math.floor(Math.random() * options.length)];
-      game.bid(seat, 'call', suit);
+      game.bid(seat, 'call', bestSuit);
     } else {
       game.bid(seat, 'pass');
     }
   }
+}
+
+// Choix de carte pour un siège IA (ou pour l'autoplay d'un joueur déconnecté).
+// Stratégie simple mais réfléchie plutôt qu'un choix uniformément aléatoire :
+// - en entame, on ouvre avec la carte la plus forte hors atout (pour tenter
+//   de faire un pli à moindre risque), sinon le plus petit atout ;
+// - si le partenaire est déjà maître du pli, inutile de monter : on se
+//   débarrasse de la carte qui rapporte le plus de points à l'équipe ;
+// - si un adversaire est maître, on essaie de reprendre la main avec la plus
+//   petite carte gagnante possible (pour garder les grosses cartes en
+//   réserve) ; si on ne peut pas gagner, on minimise la perte de points.
+function pickSmartCard(game, seat) {
+  const legal = game.legalPlaysFor(seat);
+  if (legal.length === 0) return null;
+  if (legal.length === 1) return legal[0];
+
+  const trumpSuit = game.trumpSuit;
+  const trick = game.trick;
+
+  if (trick.length === 0) {
+    const nonTrump = legal.filter((c) => c.suit !== trumpSuit);
+    const pool = nonTrump.length > 0 ? nonTrump : legal;
+    const sorted = pool.slice().sort((a, b) => cardOrderIndex(b, trumpSuit) - cardOrderIndex(a, trumpSuit));
+    return sorted[0];
+  }
+
+  let bestSeat = trick[0].seat;
+  let bestCard = trick[0].card;
+  for (let i = 1; i < trick.length; i++) {
+    const { seat: s, card: c } = trick[i];
+    if (c.suit === trumpSuit && bestCard.suit !== trumpSuit) {
+      bestSeat = s;
+      bestCard = c;
+    } else if (c.suit === bestCard.suit && cardOrderIndex(c, trumpSuit) > cardOrderIndex(bestCard, trumpSuit)) {
+      bestSeat = s;
+      bestCard = c;
+    }
+  }
+
+  const partnerWinning = teamOf(bestSeat) === teamOf(seat);
+
+  if (partnerWinning) {
+    const sorted = legal.slice().sort((a, b) => cardPoints(b, trumpSuit) - cardPoints(a, trumpSuit));
+    return sorted[0];
+  }
+
+  const winningPlays = legal.filter((c) => {
+    if (c.suit === bestCard.suit) return cardOrderIndex(c, trumpSuit) > cardOrderIndex(bestCard, trumpSuit);
+    if (c.suit === trumpSuit && bestCard.suit !== trumpSuit) return true;
+    return false;
+  });
+  if (winningPlays.length > 0) {
+    const sorted = winningPlays.slice().sort((a, b) => cardOrderIndex(a, trumpSuit) - cardOrderIndex(b, trumpSuit));
+    return sorted[0];
+  }
+
+  const sorted = legal.slice().sort((a, b) => cardPoints(a, trumpSuit) - cardPoints(b, trumpSuit));
+  return sorted[0];
 }
 
 function autoplayTick() {
@@ -77,14 +163,14 @@ function autoplayTick() {
       const seat = game.currentTurnSeat;
       const player = game.players[seat];
       if (player && player.isBot) {
-        const card = pickRandomLegalCard(game, seat);
+        const card = pickSmartCard(game, seat);
         if (card) {
           game.playCard(seat, card.id);
           broadcastState(game);
         }
       } else if (player && !player.connected) {
         markAndMaybeAct(game, seat, () => {
-          const card = pickRandomLegalCard(game, seat);
+          const card = pickSmartCard(game, seat);
           if (card) {
             game.playCard(seat, card.id);
             broadcastState(game);
