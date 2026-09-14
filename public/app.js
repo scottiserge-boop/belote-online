@@ -7,6 +7,93 @@ const RED_SUITS = new Set(['D', 'H']);
 const RANK_ORDER = ['7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
 const SUIT_DISPLAY_ORDER = ['S', 'H', 'D', 'C'];
 
+// Disposition des symboles (pips) pour les cartes numérotées 7 à 10, dans
+// l'esprit d'un jeu de cartes classique : chaque paire de coordonnées est
+// symétrique par rotation à 180° (comme sur une vraie carte, la moitié
+// basse est retournée). Coordonnées en pourcentage de la carte.
+const RANK_PIP_LAYOUTS = {
+  7: [[28, 20], [72, 80], [72, 20], [28, 80], [50, 35], [50, 65], [50, 50]],
+  8: [[28, 16], [72, 84], [72, 16], [28, 84], [28, 38], [72, 62], [72, 38], [28, 62]],
+  9: [[28, 18], [72, 82], [72, 18], [28, 82], [28, 50], [72, 50], [28, 36], [72, 64], [50, 50]],
+  10: [[28, 14], [72, 86], [72, 14], [28, 86], [28, 32], [72, 68], [72, 32], [28, 68], [28, 50], [72, 50]],
+};
+
+// Illustrations des figures (Valet/Dame/Roi) façon jeu de cartes classique :
+// silhouette dessinée une fois pour la moitié haute, puis dupliquée et
+// retournée à 180° pour la moitié basse (comme sur un vrai jeu, la carte se
+// lit à l'endroit comme à l'envers). Dessin vectoriel original (pas une
+// image importée), dans l'esprit du style "portrait officiel" traditionnel.
+// `uid` évite les collisions d'identifiants SVG quand plusieurs figures sont
+// affichées en même temps (main + pli en cours, par ex.).
+function courtFigureSVG(rank, uid) {
+  const gid = `court-${rank}-${uid}`;
+  let inner = '';
+  if (rank === 'K') {
+    inner = `
+      <path d="M54 132 C54 92 64 66 88 66 C112 66 122 92 122 132 Z" fill="#a3151d" stroke="#111" stroke-width="2"/>
+      <path d="M78 132 L78 74 Q88 68 98 74 L98 132 Z" fill="#1c3a63" stroke="#111" stroke-width="1.5"/>
+      <rect x="58" y="104" width="60" height="7" fill="#d4af37" stroke="#111" stroke-width="1"/>
+      <path d="M56 100 C40 102 36 116 46 130 L60 130 C56 122 52 110 56 100 Z" fill="#a3151d" stroke="#111" stroke-width="1.5"/>
+      <path d="M120 100 C136 102 140 116 130 130 L116 130 C120 122 124 110 120 100 Z" fill="#a3151d" stroke="#111" stroke-width="1.5"/>
+      <circle cx="45" cy="130" r="5" fill="#e8c9a0" stroke="#111" stroke-width="1.2"/>
+      <circle cx="131" cy="130" r="5" fill="#e8c9a0" stroke="#111" stroke-width="1.2"/>
+      <line x1="131" y1="128" x2="131" y2="86" stroke="#111" stroke-width="2.5"/>
+      <circle cx="131" cy="82" r="4.5" fill="#d4af37" stroke="#111" stroke-width="1.2"/>
+      <circle cx="45" cy="120" r="6" fill="#d4af37" stroke="#111" stroke-width="1.2"/>
+      <line x1="45" y1="114" x2="45" y2="109" stroke="#111" stroke-width="1.5"/>
+      <line x1="41" y1="111" x2="49" y2="111" stroke="#111" stroke-width="1.5"/>
+      <circle cx="88" cy="52" r="16" fill="#e8c9a0" stroke="#111" stroke-width="2"/>
+      <circle cx="82" cy="52" r="1.6" fill="#111"/>
+      <circle cx="94" cy="52" r="1.6" fill="#111"/>
+      <path d="M80 60 Q88 64 96 60" stroke="#111" stroke-width="1.5" fill="none"/>
+      <path d="M72 58 Q88 74 104 58" stroke="#3a2a20" stroke-width="3" fill="none"/>
+      <path d="M64 32 L72 16 L82 26 L88 12 L94 26 L104 16 L112 32 Z" fill="#d4af37" stroke="#111" stroke-width="1.5"/>
+      <rect x="62" y="30" width="52" height="8" fill="#d4af37" stroke="#111" stroke-width="1.5"/>
+      <circle cx="88" cy="12" r="3" fill="#c40000"/>`;
+  } else if (rank === 'Q') {
+    inner = `
+      <path d="M56 132 C56 96 64 72 88 72 C112 72 120 96 120 132 Z" fill="#1c3a63" stroke="#111" stroke-width="2"/>
+      <path d="M80 132 L80 82 Q88 78 96 82 L96 132 Z" fill="#d4af37" stroke="#111" stroke-width="1.5"/>
+      <path d="M58 106 C42 108 38 120 46 130 L60 130 C56 122 54 114 58 106 Z" fill="#1c3a63" stroke="#111" stroke-width="1.5"/>
+      <path d="M118 106 C134 108 138 120 130 130 L116 130 C120 122 122 114 118 106 Z" fill="#1c3a63" stroke="#111" stroke-width="1.5"/>
+      <circle cx="45" cy="130" r="5" fill="#e8c9a0" stroke="#111" stroke-width="1.2"/>
+      <circle cx="131" cy="130" r="5" fill="#e8c9a0" stroke="#111" stroke-width="1.2"/>
+      <line x1="45" y1="128" x2="45" y2="116" stroke="#2e5a2e" stroke-width="2"/>
+      <circle cx="45" cy="112" r="5.5" fill="#c40000" stroke="#111" stroke-width="1.2"/>
+      <line x1="131" y1="128" x2="131" y2="92" stroke="#111" stroke-width="2.5"/>
+      <circle cx="131" cy="88" r="4" fill="#d4af37" stroke="#111" stroke-width="1.2"/>
+      <path d="M68 46 Q60 70 66 84" stroke="#3a2a20" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <path d="M108 46 Q116 70 110 84" stroke="#3a2a20" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <circle cx="88" cy="52" r="16" fill="#e8c9a0" stroke="#111" stroke-width="2"/>
+      <circle cx="82" cy="52" r="1.6" fill="#111"/>
+      <circle cx="94" cy="52" r="1.6" fill="#111"/>
+      <path d="M81 60 Q88 63 95 60" stroke="#111" stroke-width="1.5" fill="none"/>
+      <path d="M68 30 Q88 14 108 30 L106 38 L70 38 Z" fill="#d4af37" stroke="#111" stroke-width="1.5"/>
+      <circle cx="88" cy="16" r="3" fill="#c40000"/>`;
+  } else {
+    inner = `
+      <path d="M56 132 C56 100 66 78 88 78 C110 78 120 100 120 132 Z" fill="#2f4a2f" stroke="#111" stroke-width="2"/>
+      <path d="M80 132 L80 86 Q88 82 96 86 L96 132 Z" fill="#a3151d" stroke="#111" stroke-width="1.5"/>
+      <path d="M58 110 C42 112 38 122 46 130 L60 130 C56 124 54 118 58 110 Z" fill="#2f4a2f" stroke="#111" stroke-width="1.5"/>
+      <path d="M118 110 C134 112 138 122 130 130 L116 130 C120 124 122 118 118 110 Z" fill="#2f4a2f" stroke="#111" stroke-width="1.5"/>
+      <circle cx="45" cy="130" r="5" fill="#dcb48c" stroke="#111" stroke-width="1.2"/>
+      <circle cx="131" cy="130" r="5" fill="#dcb48c" stroke="#111" stroke-width="1.2"/>
+      <line x1="131" y1="128" x2="131" y2="78" stroke="#111" stroke-width="2.5"/>
+      <path d="M125 74 L131 64 L137 74 L131 84 Z" fill="#9aa0a6" stroke="#111" stroke-width="1.2"/>
+      <path d="M70 82 L106 82 L100 90 L76 90 Z" fill="#f4ecd8" stroke="#111" stroke-width="1.2"/>
+      <circle cx="88" cy="56" r="16" fill="#dcb48c" stroke="#111" stroke-width="2"/>
+      <circle cx="82" cy="56" r="1.6" fill="#111"/>
+      <circle cx="94" cy="56" r="1.6" fill="#111"/>
+      <path d="M81 64 Q88 61 95 64" stroke="#111" stroke-width="1.5" fill="none"/>
+      <path d="M70 38 Q88 20 106 38 L102 46 L74 46 Z" fill="#2f4a2f" stroke="#111" stroke-width="1.5"/>
+      <circle cx="106" cy="32" r="3" fill="#d4af37"/>`;
+  }
+  return `<svg class="figure-svg" viewBox="0 0 176 264" preserveAspectRatio="xMidYMid meet">
+    <g id="${gid}">${inner}</g>
+    <use href="#${gid}" transform="rotate(180 88 132)"/>
+  </svg>`;
+}
+
 const el = (id) => document.getElementById(id);
 
 let joined = false;
@@ -301,14 +388,39 @@ function buildCardEl(card, trumpSuit) {
   div.className = 'card';
   if (RED_SUITS.has(card.suit)) div.classList.add('red');
   if (trumpSuit && card.suit === trumpSuit) div.style.borderColor = '#d4af37';
-  const rank = document.createElement('div');
-  rank.textContent = card.rank;
-  const suit = document.createElement('div');
-  suit.className = 'suit';
-  suit.textContent = SUIT_SYMBOLS[card.suit];
-  div.appendChild(rank);
-  div.appendChild(suit);
   div.dataset.cardId = card.id;
+
+  const suitSymbol = SUIT_SYMBOLS[card.suit];
+  const cornerTl = document.createElement('div');
+  cornerTl.className = 'corner-idx tl';
+  cornerTl.innerHTML = `${card.rank}<span class="mini-suit">${suitSymbol}</span>`;
+  const cornerBr = document.createElement('div');
+  cornerBr.className = 'corner-idx br';
+  cornerBr.innerHTML = `${card.rank}<span class="mini-suit">${suitSymbol}</span>`;
+  div.appendChild(cornerTl);
+  div.appendChild(cornerBr);
+
+  if (card.rank === 'K' || card.rank === 'Q' || card.rank === 'J') {
+    const wrap = document.createElement('div');
+    wrap.innerHTML = courtFigureSVG(card.rank, card.id);
+    div.appendChild(wrap.firstElementChild);
+  } else if (card.rank === 'A') {
+    const ace = document.createElement('div');
+    ace.className = 'ace-symbol';
+    ace.textContent = suitSymbol;
+    div.appendChild(ace);
+  } else {
+    const layout = RANK_PIP_LAYOUTS[card.rank] || [];
+    layout.forEach(([x, y]) => {
+      const pip = document.createElement('span');
+      pip.className = 'pip' + (y > 50 ? ' down' : '');
+      pip.style.left = `${x}%`;
+      pip.style.top = `${y}%`;
+      pip.textContent = suitSymbol;
+      div.appendChild(pip);
+    });
+  }
+
   return div;
 }
 
