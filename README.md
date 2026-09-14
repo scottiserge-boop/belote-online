@@ -7,7 +7,10 @@ avec un serveur Node.js (Express + Socket.io) et un client web simple
 Interface façon table de casino en ligne : feutre vert avec cadre bois/or,
 dos de cartes décoratifs pour les adversaires, et votre propre jeu affiché
 en éventail (cartes qui se chevauchent et pivotent légèrement, comme un
-vrai jeu tenu en main), le tout entièrement adapté au mobile.
+vrai jeu tenu en main), le tout entièrement adapté au mobile. Une fois
+l'atout connu, vos cartes sont automatiquement triées avec l'atout à
+gauche et les autres couleurs alternées rouge/noir pour une lecture plus
+rapide de la main.
 
 ## Lancer le jeu
 
@@ -83,14 +86,16 @@ salon ; elle ne change plus au fil du temps, contrairement au tunnel.
   à chacun puis retourne la 21e carte, qui propose une couleur d'atout.
   - *1er tour* : chaque joueur, à tour de rôle, peut "prendre" cette couleur
     ou passer.
-  - Si tout le monde passe, la carte revient dans le jeu du donneur et un
-    *2e tour* commence : chaque joueur peut alors appeler une des 3 autres
-    couleurs, ou passer.
+  - Si tout le monde passe, la carte retournée reste "en jeu" (elle n'est
+    pas encore donnée au donneur) et un *2e tour* commence : chaque joueur
+    peut alors appeler une des 3 autres couleurs, ou passer.
+  - *2e tour* : le premier joueur qui annonce une couleur ramasse la carte
+    retournée dans sa propre main (et non le donneur), conformément à la
+    règle officielle. Ce joueur devient donc le preneur de la manche.
   - Si tout le monde passe aux deux tours, on redistribue.
-  - Dès qu'un joueur prend, les mains sont complétées à 8 cartes chacune
-    (le preneur récupère la carte retournée, ou la couleur appelée devient
-    l'atout au 2e tour). Le camp du preneur doit alors marquer plus de la
-    moitié des points de la manche, sous peine de "chute".
+  - Dès qu'un joueur prend, les mains sont complétées à 8 cartes chacune.
+    Le camp du preneur doit alors marquer plus de la moitié des points de
+    la manche, sous peine de "chute".
 - **Règles de jeu strictes** : obligation de fournir la couleur demandée, de
   couper à l'atout si on ne peut pas fournir, et de monter (surcouper)
   lorsque c'est possible — sauf si le partenaire est déjà maître du pli.
@@ -108,6 +113,16 @@ salon ; elle ne change plus au fil du temps, contrairement au tunnel.
 - Reconnexion tolérée : si un joueur perd sa connexion, la partie continue
   (le serveur joue automatiquement un coup légal à sa place après quelques
   secondes d'inactivité, pour ne pas bloquer les 3 autres joueurs).
+- **Reprise de partie** : en cas de fermeture accidentelle de l'écran ou de
+  coupure réseau, le joueur peut revenir sur l'écran d'accueil et saisir à
+  nouveau le même pseudo et le même code de salon : il reprend exactement
+  son siège et sa main en cours (même en pleine manche), au lieu de se voir
+  refuser l'accès à un salon "déjà complet".
+- **Joueur IA (robot)** : depuis l'écran d'accueil, le bouton "Remplacer une
+  place vide par une IA" permet de faire occuper un siège libre d'un salon
+  par un robot, qui annonce et joue automatiquement à sa place (utile pour
+  compléter une table à 4 quand un seul joueur est disponible). Un robot est
+  repéré par l'icône 🤖 à côté de son nom, dans le salon comme en jeu.
 
 ## Structure du projet
 
