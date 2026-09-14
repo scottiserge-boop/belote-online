@@ -1,12 +1,15 @@
 {
   "name": "belote-online",
   "version": "1.0.0",
-  "description": "Belote en ligne multijoueur en temps réel (4 joueurs, 2 équipes)",
+  "description": "Belote et Yams en ligne multijoueur en temps réel (choix du jeu au moment de créer le salon)",
   "main": "server/server.js",
   "scripts": {
     "start": "node server/server.js",
     "test": "node test/simulate.js",
-    "test:integration": "node test/integration.js"
+    "test:yams": "node test/simulate-yams.js",
+    "test:integration": "node test/integration.js",
+    "test:integration-yams": "node test/integration-yams.js",
+    "test:all": "npm test && npm run test:yams && npm run test:integration && npm run test:integration-yams"
   },
   "license": "MIT",
   "dependencies": {
