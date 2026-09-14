@@ -182,10 +182,10 @@ button:active:not(:disabled) { transform: translateY(1px); }
 
 .trick-area {
   position: relative;
-  width: 303px;
+  width: 360px;
   /* Assez haut pour loger 2 cartes (haut+bas) + leurs étiquettes de nom sans
-     chevauchement : hauteur de carte (126) + étiquette (~16) + marge, x2. */
-  height: 331px;
+     chevauchement : hauteur de carte (150) + étiquette (~16) + marge, x2. */
+  height: 394px;
   border-radius: 50%;
   background: radial-gradient(ellipse at center, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 70%);
   transition: height 0.15s ease;
@@ -195,7 +195,7 @@ button:active:not(:disabled) { transform: translateY(1px); }
 
 .trick-slot {
   position: absolute;
-  width: 84px;
+  width: 100px;
   display: flex; flex-direction: column; align-items: center; gap: 4px;
 }
 .trick-slot.pos-bottom { left: 50%; bottom: 0; transform: translateX(-50%); }
@@ -204,9 +204,9 @@ button:active:not(:disabled) { transform: translateY(1px); }
 .trick-slot.pos-right { right: 0; top: 50%; transform: translateY(-50%); }
 
 .trick-card {
-  width: 84px; height: 126px; border-radius: 6px; background: #fff; color: #111;
+  width: 100px; height: 150px; border-radius: 6px; background: #fff; color: #111;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  font-weight: 700; font-size: 1.46rem; box-shadow: 0 3px 8px rgba(0,0,0,0.4);
+  font-weight: 700; font-size: 1.74rem; box-shadow: 0 3px 8px rgba(0,0,0,0.4);
   border: 3px solid transparent;
 }
 .trick-card.red { color: #c40000; }
@@ -293,10 +293,10 @@ button:active:not(:disabled) { transform: translateY(1px); }
 .hand-slot .card { margin: 0; }
 
 .card {
-  width: 84px; height: 126px; background: linear-gradient(180deg, #ffffff 0%, #f4f0e6 100%);
+  width: 100px; height: 150px; background: linear-gradient(180deg, #ffffff 0%, #f4f0e6 100%);
   color: #111; border-radius: 10px;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  font-weight: 700; font-size: 1.58rem; margin: 4px;
+  font-weight: 700; font-size: 1.88rem; margin: 4px;
   box-shadow: 0 3px 6px rgba(0,0,0,0.4), inset 0 0 0 1px rgba(0,0,0,0.06);
   cursor: pointer; transition: transform 0.1s ease, box-shadow 0.1s ease;
   border: 2px solid transparent;
@@ -310,7 +310,7 @@ button:active:not(:disabled) { transform: translateY(1px); }
 .card.playable { border-color: rgba(212,175,55,0.55); }
 .card.disabled { opacity: 0.45; cursor: not-allowed; filter: grayscale(0.15); }
 .card.disabled:hover, .card.disabled:active { transform: none; box-shadow: 0 3px 6px rgba(0,0,0,0.4); }
-.card .suit { font-size: 1.81rem; }
+.card .suit { font-size: 2.16rem; }
 
 /* Le bouton Journal vit dans l'en-tête (pas en position fixe) pour ne
    jamais risquer de chevaucher la main du joueur en bas de l'écran. */
@@ -347,13 +347,13 @@ button:active:not(:disabled) { transform: translateY(1px); }
 
 @media (max-width: 640px) {
   .home-forms { flex-direction: column; }
-  .card { width: 66px; height: 99px; font-size: 1.28rem; margin: 3px; }
+  .card { width: 78px; height: 117px; font-size: 1.51rem; margin: 3px; }
   /* La zone de pli doit être assez haute pour loger 2 cartes + leurs
      étiquettes (haut/bas) sans qu'elles ne se chevauchent : hauteur de carte
-     (99) + étiquette (~14) + marge, multiplié par 2 emplacements. */
-  .trick-area { width: 259px; height: 261px; }
-  .trick-slot { width: 66px; gap: 2px; }
-  .trick-area .trick-card { width: 66px; height: 99px; font-size: 1.28rem; }
+     (117) + étiquette (~14) + marge, multiplié par 2 emplacements. */
+  .trick-area { width: 306px; height: 308px; }
+  .trick-slot { width: 78px; gap: 2px; }
+  .trick-area .trick-card { width: 78px; height: 117px; font-size: 1.51rem; }
   .trick-slot .from { font-size: 0.65rem; }
   .game-header { padding: 8px 12px; font-size: 0.8rem; gap: 6px 10px; }
   .scores span { margin-right: 8px; }
@@ -365,11 +365,11 @@ button:active:not(:disabled) { transform: translateY(1px); }
 
 /* Petits téléphones (iPhone SE, etc.) : encore un cran plus compact. */
 @media (max-width: 400px) {
-  .card { width: 54px; height: 81px; font-size: 1.11rem; margin: 2px; }
-  .card .suit { font-size: 1.34rem; }
-  .trick-area { width: 215px; height: 222px; }
-  .trick-slot { width: 54px; gap: 1px; }
-  .trick-area .trick-card { width: 54px; height: 81px; font-size: 1.11rem; }
+  .card { width: 64px; height: 96px; font-size: 1.32rem; margin: 2px; }
+  .card .suit { font-size: 1.59rem; }
+  .trick-area { width: 255px; height: 263px; }
+  .trick-slot { width: 64px; gap: 1px; }
+  .trick-area .trick-card { width: 64px; height: 96px; font-size: 1.32rem; }
   .trick-slot .from { font-size: 0.6rem; }
   .mini-card { width: 16px; height: 24px; margin-left: -8px; }
   .seat-name { font-size: 0.8rem; }
@@ -412,6 +412,17 @@ button:active:not(:disabled) { transform: translateY(1px); }
 .yams-die.clickable { cursor: pointer; }
 .yams-die.clickable:hover { transform: translateY(-3px); }
 .yams-die.held { border-color: #d4af37; box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.35), 0 3px 6px rgba(0,0,0,0.4); }
+/* Petite secousse pendant qu'un dé "tourne" (le chiffre affiché change déjà
+   rapidement en JS ; cette animation ajoute un mouvement visuel au dé
+   lui-même pour renforcer l'impression de lancer). */
+.yams-die.spinning { animation: yams-die-spin 0.3s linear infinite; }
+@keyframes yams-die-spin {
+  0% { transform: rotate(0deg) scale(1); }
+  25% { transform: rotate(-8deg) scale(1.05); }
+  50% { transform: rotate(0deg) scale(0.96); }
+  75% { transform: rotate(8deg) scale(1.05); }
+  100% { transform: rotate(0deg) scale(1); }
+}
 .yams-roll-controls { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; }
 .yams-rolls-left { font-size: 0.85rem; color: #cfe8d8; }
 
