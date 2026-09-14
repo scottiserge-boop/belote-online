@@ -7,8 +7,8 @@
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="apple-mobile-web-app-title" content="Belote" />
-<title>Belote en ligne</title>
+<meta name="apple-mobile-web-app-title" content="Belote/Yams" />
+<title>Belote &amp; Yams en ligne</title>
 <link rel="manifest" href="manifest.json" />
 <link rel="icon" href="icons/icon-192.png" />
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
@@ -21,23 +21,28 @@
 <!-- Écran d'accueil -->
 <section id="screen-home" class="screen">
   <div class="home-card">
-    <h1>🃏 Belote en ligne</h1>
-    <p class="subtitle">Belote classique à 4 joueurs, en équipes de 2, en temps réel.</p>
+    <h1>🃏🎲 Belote &amp; Yams en ligne</h1>
+    <p class="subtitle">Deux jeux classiques en temps réel, sur la même table : Belote (4 joueurs, équipes de 2) et Yams (2 à 6 joueurs).</p>
 
     <div class="home-forms">
       <div class="home-form">
         <h2>Créer un salon</h2>
+        <div class="game-type-tabs" role="tablist">
+          <button type="button" class="game-tab active" data-game="belote">🃏 Belote</button>
+          <button type="button" class="game-tab" data-game="yams">🎲 Yams</button>
+        </div>
         <label>Votre pseudo
           <input type="text" id="create-name" maxlength="20" placeholder="Ex : Scotti" />
         </label>
-        <label>Score cible
+        <label id="create-target-wrap">Score cible
           <select id="create-target">
             <option value="501" selected>501 points (classique)</option>
             <option value="301">301 points (partie courte)</option>
             <option value="1000">1000 points (partie longue)</option>
           </select>
         </label>
-        <button id="btn-create">Créer la table</button>
+        <p class="hint" id="yams-hint" hidden>Jeu classique à 13 catégories, de 2 à 6 joueurs. La partie se termine quand chacun a rempli sa feuille de score.</p>
+        <button id="btn-create">Créer la table (Belote)</button>
       </div>
 
       <div class="home-form">
@@ -124,6 +129,37 @@
   </div>
 
   <div id="log-panel" class="log-panel hidden"></div>
+</section>
+
+<!-- Table de jeu (Yams) -->
+<section id="screen-game-yams" class="screen hidden">
+  <header class="game-header">
+    <div class="room-code">Salon <strong id="yams-game-code"></strong></div>
+    <div id="yams-turn-indicator" class="yams-turn-indicator"></div>
+    <button id="yams-log-toggle" class="log-toggle" aria-label="Journal de la partie">📜</button>
+  </header>
+
+  <div id="yams-game-over-banner" class="yams-game-over-banner hidden">
+    <h2 id="yams-winner-title"></h2>
+    <button onclick="location.reload()">Nouvelle partie</button>
+  </div>
+
+  <div class="yams-board">
+    <div class="yams-dice-area">
+      <div id="yams-dice" class="yams-dice"></div>
+      <div class="yams-roll-controls">
+        <button id="btn-yams-roll" disabled>🎲 Lancer les dés</button>
+        <span id="yams-rolls-left" class="yams-rolls-left"></span>
+      </div>
+      <p class="hint">Cliquez un dé après un lancer pour le garder (verrouillé), puis relancez les autres.</p>
+    </div>
+
+    <div class="yams-scoresheet-wrap">
+      <table class="yams-scoresheet" id="yams-scoresheet"></table>
+    </div>
+  </div>
+
+  <div id="yams-log-panel" class="log-panel hidden"></div>
 </section>
 
 <!-- Fin de manche -->
