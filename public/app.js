@@ -43,6 +43,20 @@ el('btn-join').addEventListener('click', () => {
   });
 });
 
+el('btn-join-ai').addEventListener('click', () => {
+  const roomId = el('join-code').value.trim().toUpperCase();
+  if (!roomId) {
+    el('home-error').textContent = 'Merci de saisir le code du salon à compléter avec une IA.';
+    return;
+  }
+  socket.emit('add_bot', { roomId }, (res) => {
+    if (!res.ok) {
+      el('home-error').textContent = res.error || 'Erreur inconnue.';
+      return;
+    }
+  });
+});
+
 el('btn-start').addEventListener('click', () => socket.emit('start_game'));
 el('btn-next-hand').addEventListener('click', () => socket.emit('next_hand'));
 
@@ -68,7 +82,7 @@ function showToast(text) {
   toast.textContent = text;
   toast.classList.remove('hidden');
   clearTimeout(showToast._t);
-  showToast._t = setTimeout(() => toast.classList.add('hidden'), 3000);
+  showToast._t = setTimeout(() => toast.classList.add('hidden'), 6000);
 }
 
 function showScreen(name) {
@@ -107,7 +121,8 @@ function renderLobby(state) {
     const li = document.createElement('li');
     const team = seat % 2 === 0 ? 'Équipe A' : 'Équipe B';
     if (p) {
-      li.innerHTML = `<span>${escapeHtml(p.name)}${seat === state.mySeat ? ' (vous)' : ''}</span><span class="team-tag">${team}</span>`;
+      const botTag = p.isBot ? ' 🤖' : '';
+      li.innerHTML = `<span>${escapeHtml(p.name)}${botTag}${seat === state.mySeat ? ' (vous)' : ''}</span><span class="team-tag">${team}</span>`;
     } else {
       li.innerHTML = `<span class="empty">Place libre — siège ${seat + 1}</span><span class="team-tag">${team}</span>`;
     }
@@ -125,10 +140,8 @@ function renderGameHeader(state) {
   el('score-b').textContent = state.matchScore[1];
   el('score-target').textContent = state.targetScore;
   el('hand-number').textContent = state.handNumber;
-  el('trump-indicator').textContent = state.trumpSuit
-    ? `${SUIT_SYMBOLS[state.trumpSuit]}${RED_SUITS.has(state.trumpSuit) ? '' : ''}`
-    : '—';
-  el('trump-indicator').style.color = state.trumpSuit && RED_SUITS.has(state.trumpSuit) ? '#ff8f8f' : '#f1f1f1';
+  el('trump-indicator').textContent = state.trumpSuit ? SUIT_SYMBOLS[state.trumpSuit] : '—';
+  el('trump-indicator').style.color = state.trumpSuit && RED_SUITS.has(state.trumpSuit) ? '#ff6f6f' : '#f1f1f1';
 
   // Sous-total de la manche en cours (points de cartes remportés jusqu'ici
   // dans les plis déjà joués), distinct du score total de la partie.
@@ -161,7 +174,7 @@ function renderSeat(containerId, state, seat) {
   if (state.dealer === seat) nameEl.classList.add('seat-dealer');
 
   if (p) {
-    nameEl.textContent = p.name + (seat === state.mySeat ? ' (vous)' : '');
+    nameEl.textContent = p.name + (p.isBot ? ' 🤖' : '') + (seat === state.mySeat ? ' (vous)' : '');
     if (!p.connected) nameEl.classList.add('disconnected');
   } else {
     nameEl.textContent = 'En attente…';
@@ -350,9 +363,47 @@ function renderBiddingPanel(state) {
 // avec les points de rupture définis dans style.css pour .card).
 function currentCardSize() {
   const w = window.innerWidth;
-  if (w <= 400) return { w: 40, h: 60 };
-  if (w <= 640) return { w: 48, h: 72 };
-  return { w: 64, h: 96 };
+  if (w <= 400) return { w: 46, h: 69 };
+  if (w <= 640) return { w: 56, h: 84 };
+  return { w: 72, h: 108 };
+}
+
+// Ordre d'affichage des couleurs dans la main : l'atout toujours à gauche
+// (quand il est connu et présent en main), puis les couleurs suivantes en
+// alternant rouge/noir. Le calcul se base sur les couleurs réellement
+// présentes dans la main : sans cela, une couleur absente (0 carte) peut
+// laisser deux groupes de même teinte se retrouver côte à côte (ex : atout
+// carreau + cœur adjacents, tous deux rouges) si on se contentait de filtrer
+// un ordre figé.
+function suitDisplayOrder(trumpSuit, suitCounts) {
+  const colorOf = (s) => (RED_SUITS.has(s) ? 'red' : 'black');
+  const present = SUIT_DISPLAY_ORDER.filter((s) => !suitCounts || suitCounts[s] > 0);
+  const pool = present.length ? present.slice() : SUIT_DISPLAY_ORDER.slice();
+
+  const order = [];
+  let startSuit = null;
+  if (trumpSuit && pool.includes(trumpSuit)) {
+    startSuit = trumpSuit;
+  } else if (pool.length) {
+    startSuit = pool[0];
+  }
+  if (startSuit) {
+    order.push(startSuit);
+    pool.splice(pool.indexOf(startSuit), 1);
+  }
+  while (pool.length) {
+    const lastColor = order.length ? colorOf(order[order.length - 1]) : null;
+    let idx = pool.findIndex((s) => colorOf(s) !== lastColor);
+    if (idx === -1) idx = 0;
+    order.push(pool[idx]);
+    pool.splice(idx, 1);
+  }
+  // Complète avec les couleurs totalement absentes de la main (peu importe où,
+  // puisqu'aucune carte ne s'y trouve) pour que le comparateur indexOf() reste valide.
+  for (const s of SUIT_DISPLAY_ORDER) {
+    if (!order.includes(s)) order.push(s);
+  }
+  return order;
 }
 
 function renderHand(state) {
@@ -361,8 +412,11 @@ function renderHand(state) {
   const canPlay = state.phase === 'playing' && state.currentTurnSeat === state.mySeat;
   const legalSet = new Set(state.legalPlays || []);
 
+  const suitCounts = {};
+  (state.myHand || []).forEach((c) => { suitCounts[c.suit] = (suitCounts[c.suit] || 0) + 1; });
+  const order = suitDisplayOrder(state.trumpSuit, suitCounts);
   const sorted = (state.myHand || []).slice().sort((a, b) => {
-    const suitDiff = SUIT_DISPLAY_ORDER.indexOf(a.suit) - SUIT_DISPLAY_ORDER.indexOf(b.suit);
+    const suitDiff = order.indexOf(a.suit) - order.indexOf(b.suit);
     if (suitDiff !== 0) return suitDiff;
     return RANK_ORDER.indexOf(a.rank) - RANK_ORDER.indexOf(b.rank);
   });
@@ -380,7 +434,7 @@ function renderHand(state) {
   const maxContainerWidth = Math.min(window.innerWidth - 24, 640);
   const desiredStep = cardW * 0.58;
   const overlapStep = n > 1 ? Math.min(desiredStep, (maxContainerWidth - cardW) / (n - 1)) : 0;
-  const arcHeight = cardW <= 40 ? 10 : cardW <= 48 ? 13 : 18;
+  const arcHeight = cardW <= 46 ? 11 : cardW <= 56 ? 15 : 20;
 
   const centerIndex = (n - 1) / 2;
 
