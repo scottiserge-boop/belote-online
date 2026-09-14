@@ -169,10 +169,10 @@ button:active:not(:disabled) { transform: translateY(1px); }
 
 .trick-area {
   position: relative;
-  width: 260px;
+  width: 303px;
   /* Assez haut pour loger 2 cartes (haut+bas) + leurs étiquettes de nom sans
-     chevauchement : hauteur de carte (108) + étiquette (~16) + marge, x2. */
-  height: 284px;
+     chevauchement : hauteur de carte (126) + étiquette (~16) + marge, x2. */
+  height: 331px;
   border-radius: 50%;
   background: radial-gradient(ellipse at center, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 70%);
   transition: height 0.15s ease;
@@ -182,7 +182,7 @@ button:active:not(:disabled) { transform: translateY(1px); }
 
 .trick-slot {
   position: absolute;
-  width: 72px;
+  width: 84px;
   display: flex; flex-direction: column; align-items: center; gap: 4px;
 }
 .trick-slot.pos-bottom { left: 50%; bottom: 0; transform: translateX(-50%); }
@@ -191,9 +191,9 @@ button:active:not(:disabled) { transform: translateY(1px); }
 .trick-slot.pos-right { right: 0; top: 50%; transform: translateY(-50%); }
 
 .trick-card {
-  width: 72px; height: 108px; border-radius: 6px; background: #fff; color: #111;
+  width: 84px; height: 126px; border-radius: 6px; background: #fff; color: #111;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  font-weight: 700; font-size: 1.25rem; box-shadow: 0 3px 8px rgba(0,0,0,0.4);
+  font-weight: 700; font-size: 1.46rem; box-shadow: 0 3px 8px rgba(0,0,0,0.4);
   border: 3px solid transparent;
 }
 .trick-card.red { color: #c40000; }
@@ -280,17 +280,16 @@ button:active:not(:disabled) { transform: translateY(1px); }
 .hand-slot .card { margin: 0; }
 
 .card {
-  position: relative;
-  width: 72px; height: 108px; background: linear-gradient(180deg, #ffffff 0%, #f4f0e6 100%);
-  color: #111; border-radius: 9px;
-  font-weight: 700; font-size: 1.35rem; margin: 4px;
+  width: 84px; height: 126px; background: linear-gradient(180deg, #ffffff 0%, #f4f0e6 100%);
+  color: #111; border-radius: 10px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 1.58rem; margin: 4px;
   box-shadow: 0 3px 6px rgba(0,0,0,0.4), inset 0 0 0 1px rgba(0,0,0,0.06);
   cursor: pointer; transition: transform 0.1s ease, box-shadow 0.1s ease;
   border: 2px solid transparent;
   touch-action: manipulation;
   -webkit-user-select: none; user-select: none;
   -webkit-touch-callout: none; /* évite le menu contextuel iOS sur appui long */
-  overflow: hidden;
 }
 .card:hover { transform: translateY(-14px); box-shadow: 0 8px 16px rgba(0,0,0,0.45); }
 .card:active { transform: translateY(-8px) scale(0.97); }
@@ -298,26 +297,7 @@ button:active:not(:disabled) { transform: translateY(1px); }
 .card.playable { border-color: rgba(212,175,55,0.55); }
 .card.disabled { opacity: 0.45; cursor: not-allowed; filter: grayscale(0.15); }
 .card.disabled:hover, .card.disabled:active { transform: none; box-shadow: 0 3px 6px rgba(0,0,0,0.4); }
-.card .suit { font-size: 1.55rem; }
-
-/* --- Habillage "jeu de cartes classique" (voir buildCardEl dans app.js) --- */
-.card .corner-idx {
-  position: absolute; font-weight: 800; line-height: 1; z-index: 6;
-  font-size: 0.68em;
-}
-.card .corner-idx.tl { top: 6%; left: 9%; }
-.card .corner-idx.br { bottom: 6%; right: 9%; transform: rotate(180deg); }
-.card .corner-idx .mini-suit { display: block; font-size: 0.82em; margin-top: 1px; }
-.card .pip {
-  position: absolute; font-size: 0.6em; transform: translate(-50%, -50%);
-  line-height: 1;
-}
-.card .pip.down { transform: translate(-50%, -50%) rotate(180deg); }
-.card .ace-symbol {
-  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  font-size: 2.15em; line-height: 1;
-}
-.card .figure-svg { position: absolute; left: 10%; right: 10%; top: 8%; bottom: 8%; z-index: 2; }
+.card .suit { font-size: 1.81rem; }
 
 /* Le bouton Journal vit dans l'en-tête (pas en position fixe) pour ne
    jamais risquer de chevaucher la main du joueur en bas de l'écran. */
@@ -354,13 +334,13 @@ button:active:not(:disabled) { transform: translateY(1px); }
 
 @media (max-width: 640px) {
   .home-forms { flex-direction: column; }
-  .card { width: 56px; height: 84px; font-size: 1.1rem; margin: 3px; }
+  .card { width: 66px; height: 99px; font-size: 1.28rem; margin: 3px; }
   /* La zone de pli doit être assez haute pour loger 2 cartes + leurs
      étiquettes (haut/bas) sans qu'elles ne se chevauchent : hauteur de carte
-     (84) + étiquette (~14) + marge, multiplié par 2 emplacements. */
-  .trick-area { width: 222px; height: 224px; }
-  .trick-slot { width: 56px; gap: 2px; }
-  .trick-area .trick-card { width: 56px; height: 84px; font-size: 1.1rem; }
+     (99) + étiquette (~14) + marge, multiplié par 2 emplacements. */
+  .trick-area { width: 259px; height: 261px; }
+  .trick-slot { width: 66px; gap: 2px; }
+  .trick-area .trick-card { width: 66px; height: 99px; font-size: 1.28rem; }
   .trick-slot .from { font-size: 0.65rem; }
   .game-header { padding: 8px 12px; font-size: 0.8rem; gap: 6px 10px; }
   .scores span { margin-right: 8px; }
@@ -372,11 +352,11 @@ button:active:not(:disabled) { transform: translateY(1px); }
 
 /* Petits téléphones (iPhone SE, etc.) : encore un cran plus compact. */
 @media (max-width: 400px) {
-  .card { width: 46px; height: 69px; font-size: 0.95rem; margin: 2px; }
-  .card .suit { font-size: 1.15rem; }
-  .trick-area { width: 184px; height: 190px; }
-  .trick-slot { width: 46px; gap: 1px; }
-  .trick-area .trick-card { width: 46px; height: 69px; font-size: 0.95rem; }
+  .card { width: 54px; height: 81px; font-size: 1.11rem; margin: 2px; }
+  .card .suit { font-size: 1.34rem; }
+  .trick-area { width: 215px; height: 222px; }
+  .trick-slot { width: 54px; gap: 1px; }
+  .trick-area .trick-card { width: 54px; height: 81px; font-size: 1.11rem; }
   .trick-slot .from { font-size: 0.6rem; }
   .mini-card { width: 16px; height: 24px; margin-left: -8px; }
   .seat-name { font-size: 0.8rem; }
