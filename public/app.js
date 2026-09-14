@@ -8,19 +8,92 @@ const RED_SUITS = new Set(['D', 'H']);
 const RANK_ORDER = ['7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
 const SUIT_DISPLAY_ORDER = ['S', 'H', 'D', 'C'];
 
+// --- Feuille de score Yams (dupliqué côté client pour l'aperçu en direct) --
+
+const YAMS_CATEGORY_DEFS = [
+  { key: 'as', label: 'As', section: 'upper' },
+  { key: 'deux', label: 'Deux', section: 'upper' },
+  { key: 'trois', label: 'Trois', section: 'upper' },
+  { key: 'quatre', label: 'Quatre', section: 'upper' },
+  { key: 'cinq', label: 'Cinq', section: 'upper' },
+  { key: 'six', label: 'Six', section: 'upper' },
+  { key: 'brelan', label: 'Brelan', section: 'lower' },
+  { key: 'carre', label: 'Carré', section: 'lower' },
+  { key: 'full', label: 'Full (25)', section: 'lower' },
+  { key: 'petiteSuite', label: 'Petite suite (30)', section: 'lower' },
+  { key: 'grandeSuite', label: 'Grande suite (40)', section: 'lower' },
+  { key: 'yams', label: 'Yams (50)', section: 'lower' },
+  { key: 'chance', label: 'Chance', section: 'lower' },
+];
+const YAMS_UPPER_VALUE = { as: 1, deux: 2, trois: 3, quatre: 4, cinq: 5, six: 6 };
+const DIE_FACES = { 1: '⚀', 2: '⚁', 3: '⚂', 4: '⚃', 5: '⚄', 6: '⚅' };
+
+function yamsHasConsecutiveRun(uniqueSortedValues, length) {
+  for (let start = 1; start <= 6 - length + 1; start++) {
+    let ok = true;
+    for (let k = 0; k < length; k++) {
+      if (!uniqueSortedValues.includes(start + k)) { ok = false; break; }
+    }
+    if (ok) return true;
+  }
+  return false;
+}
+
+// Même règles de calcul que server/game/YamsGame.js : sert uniquement à
+// afficher un aperçu ("ce que je marquerais") avant validation, le serveur
+// reste seul juge du score réellement enregistré.
+function computeYamsPreview(dice, category) {
+  if (!dice || dice.some((d) => !d)) return 0;
+  const counts = [0, 0, 0, 0, 0, 0, 0];
+  for (const d of dice) counts[d] += 1;
+  const maxCount = Math.max(...counts.slice(1));
+  const uniqueSorted = [...new Set(dice)].sort((a, b) => a - b);
+  const sumAll = dice.reduce((a, b) => a + b, 0);
+
+  if (YAMS_UPPER_VALUE[category]) {
+    const v = YAMS_UPPER_VALUE[category];
+    return counts[v] * v;
+  }
+  switch (category) {
+    case 'brelan': return maxCount >= 3 ? sumAll : 0;
+    case 'carre': return maxCount >= 4 ? sumAll : 0;
+    case 'full': {
+      const groups = counts.slice(1).filter((n) => n > 0);
+      return groups.length === 2 && groups.includes(3) && groups.includes(2) ? 25 : 0;
+    }
+    case 'petiteSuite': return yamsHasConsecutiveRun(uniqueSorted, 4) ? 30 : 0;
+    case 'grandeSuite': return yamsHasConsecutiveRun(uniqueSorted, 5) ? 40 : 0;
+    case 'yams': return maxCount === 5 ? 50 : 0;
+    case 'chance': return sumAll;
+    default: return 0;
+  }
+}
+
 const el = (id) => document.getElementById(id);
 
 let joined = false;
 let mySeat = null;
 let lastPhase = null;
 let lastTrumpSuit = null;
+let lastYamsScoreAt = null;
+let selectedGameType = 'belote';
 
 // --- Écran d'accueil -------------------------------------------------------
+
+document.querySelectorAll('.game-tab').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    selectedGameType = btn.dataset.game;
+    document.querySelectorAll('.game-tab').forEach((b) => b.classList.toggle('active', b === btn));
+    el('create-target-wrap').classList.toggle('hidden', selectedGameType !== 'belote');
+    el('yams-hint').toggleAttribute('hidden', selectedGameType !== 'yams');
+    el('btn-create').textContent = selectedGameType === 'yams' ? 'Créer la table (Yams)' : 'Créer la table (Belote)';
+  });
+});
 
 el('btn-create').addEventListener('click', () => {
   const name = el('create-name').value.trim() || 'Joueur';
   const targetScore = parseInt(el('create-target').value, 10);
-  socket.emit('create_room', { name, targetScore }, (res) => {
+  socket.emit('create_room', { name, targetScore, gameType: selectedGameType }, (res) => {
     if (!res.ok) {
       el('home-error').textContent = res.error || 'Erreur inconnue.';
       return;
@@ -71,6 +144,9 @@ el('btn-pass-2').addEventListener('click', () => socket.emit('bid', { action: 'p
 
 el('log-toggle').addEventListener('click', () => el('log-panel').classList.toggle('hidden'));
 
+el('btn-yams-roll').addEventListener('click', () => socket.emit('yams_roll'));
+el('yams-log-toggle').addEventListener('click', () => el('yams-log-panel').classList.toggle('hidden'));
+
 socket.on('error_message', (msg) => showToast(msg));
 
 socket.on('state', (state) => {
@@ -88,7 +164,7 @@ function showToast(text) {
 }
 
 function showScreen(name) {
-  ['screen-home', 'screen-lobby', 'screen-game'].forEach((id) => el(id).classList.toggle('hidden', id !== name));
+  ['screen-home', 'screen-lobby', 'screen-game', 'screen-game-yams'].forEach((id) => el(id).classList.toggle('hidden', id !== name));
 }
 
 // --- Rendu principal --------------------------------------------------------
@@ -97,6 +173,12 @@ function renderState(state) {
   if (state.phase === 'lobby') {
     showScreen('screen-lobby');
     renderLobby(state);
+    return;
+  }
+
+  if (state.type === 'yams') {
+    showScreen('screen-game-yams');
+    renderYamsGame(state);
     return;
   }
 
@@ -130,23 +212,31 @@ function renderState(state) {
 
 function renderLobby(state) {
   el('lobby-code').textContent = state.roomId;
+  const isBelote = state.type !== 'yams';
   const list = el('lobby-seats');
   list.innerHTML = '';
   state.players.forEach((p, seat) => {
     const li = document.createElement('li');
-    const team = seat % 2 === 0 ? 'Équipe A' : 'Équipe B';
+    const team = isBelote ? (seat % 2 === 0 ? 'Équipe A' : 'Équipe B') : '';
+    const teamTag = team ? `<span class="team-tag">${team}</span>` : '';
     if (p) {
       const botTag = p.isBot ? ' 🤖' : '';
-      li.innerHTML = `<span>${escapeHtml(p.name)}${botTag}${seat === state.mySeat ? ' (vous)' : ''}</span><span class="team-tag">${team}</span>`;
+      li.innerHTML = `<span>${escapeHtml(p.name)}${botTag}${seat === state.mySeat ? ' (vous)' : ''}</span>${teamTag}`;
     } else {
-      li.innerHTML = `<span class="empty">Place libre — siège ${seat + 1}</span><span class="team-tag">${team}</span>`;
+      li.innerHTML = `<span class="empty">Place libre — siège ${seat + 1}</span>${teamTag}`;
     }
     list.appendChild(li);
   });
-  const full = state.players.every((p) => p !== null);
   const startBtn = el('btn-start');
-  startBtn.disabled = !full;
-  startBtn.textContent = full ? 'Démarrer la partie' : 'En attente des 4 joueurs…';
+  startBtn.disabled = !state.canStart;
+  if (isBelote) {
+    startBtn.textContent = state.canStart ? 'Démarrer la partie' : 'En attente des 4 joueurs…';
+  } else {
+    const count = state.players.filter((p) => p !== null).length;
+    startBtn.textContent = state.canStart
+      ? 'Démarrer la partie'
+      : `En attente de joueurs (${count}/${state.minPlayers} min.)…`;
+  }
 }
 
 function renderGameHeader(state) {
@@ -542,4 +632,181 @@ function renderGameOverOverlay(state) {
 
 function escapeHtml(str) {
   return str.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// --- Rendu du plateau Yams ---------------------------------------------------
+
+function renderYamsGame(state) {
+  el('yams-game-code').textContent = state.roomId;
+
+  const banner = el('yams-game-over-banner');
+  if (state.phase === 'game_over') {
+    banner.classList.remove('hidden');
+    const ranking = state.players
+      .map((p, seat) => (p ? { seat, name: p.name, total: state.totals[seat] ? state.totals[seat].grandTotal : 0 } : null))
+      .filter(Boolean)
+      .sort((a, b) => b.total - a.total);
+    const winner = ranking[0];
+    el('yams-winner-title').textContent = winner
+      ? `🏆 ${escapeHtml(winner.name)} remporte la partie avec ${winner.total} points !`
+      : 'Partie terminée !';
+  } else {
+    banner.classList.add('hidden');
+  }
+
+  const turnIndicator = el('yams-turn-indicator');
+  if (state.phase === 'playing') {
+    const turnPlayer = state.players[state.currentTurnSeat];
+    const myTurn = state.currentTurnSeat === state.mySeat;
+    turnIndicator.textContent = myTurn ? '🎯 À vous de jouer !' : `Tour de ${turnPlayer ? turnPlayer.name : '?'}…`;
+    turnIndicator.classList.toggle('my-turn', myTurn);
+  } else {
+    turnIndicator.textContent = '';
+    turnIndicator.classList.remove('my-turn');
+  }
+
+  renderYamsDice(state);
+  renderYamsScoreSheet(state);
+  renderYamsLog(state);
+
+  // Petite annonce (6 secondes, voir showToast) à chaque fois qu'un joueur
+  // vient de marquer une catégorie, pour que toute la table suive la partie.
+  if (state.lastScoreEvent && state.lastScoreEvent.at !== lastYamsScoreAt) {
+    const ev = state.lastScoreEvent;
+    const def = YAMS_CATEGORY_DEFS.find((c) => c.key === ev.category);
+    showToast(`${ev.playerName} marque ${ev.score} pt(s) en ${def ? def.label : ev.category}`);
+    lastYamsScoreAt = ev.at;
+  }
+}
+
+function renderYamsDice(state) {
+  const container = el('yams-dice');
+  container.innerHTML = '';
+  const myTurn = state.phase === 'playing' && state.currentTurnSeat === state.mySeat;
+  const canRoll = myTurn && state.rollsLeft > 0;
+  const canHold = myTurn && state.hasRolled && state.rollsLeft > 0;
+
+  for (let i = 0; i < 5; i++) {
+    const val = state.dice[i];
+    const die = document.createElement('div');
+    die.className = 'yams-die';
+    if (!state.hasRolled || !val) die.classList.add('empty');
+    if (state.held[i]) die.classList.add('held');
+    if (canHold) die.classList.add('clickable');
+    die.textContent = val ? DIE_FACES[val] : '?';
+    die.addEventListener('click', () => {
+      if (!canHold) return;
+      socket.emit('yams_toggle_hold', { index: i });
+    });
+    container.appendChild(die);
+  }
+
+  const rollBtn = el('btn-yams-roll');
+  rollBtn.disabled = !canRoll;
+  rollBtn.textContent = state.hasRolled
+    ? `🎲 Relancer (${state.rollsLeft} restant${state.rollsLeft > 1 ? 's' : ''})`
+    : '🎲 Lancer les dés';
+  el('yams-rolls-left').textContent = state.phase === 'playing' ? `Lancers restants : ${state.rollsLeft}/3` : '';
+}
+
+function renderYamsScoreSheet(state) {
+  const table = el('yams-scoresheet');
+  table.innerHTML = '';
+  const seats = state.players.map((p, seat) => (p ? seat : null)).filter((s) => s !== null);
+  const myTurn = state.phase === 'playing' && state.currentTurnSeat === state.mySeat;
+  const canScore = myTurn && state.hasRolled;
+
+  const thead = document.createElement('thead');
+  const headRow = document.createElement('tr');
+  headRow.appendChild(document.createElement('th'));
+  seats.forEach((seat) => {
+    const th = document.createElement('th');
+    const p = state.players[seat];
+    th.textContent = p.name + (p.isBot ? ' 🤖' : '') + (seat === state.mySeat ? ' (vous)' : '');
+    if (state.phase === 'playing' && seat === state.currentTurnSeat) th.classList.add('yams-col-turn');
+    headRow.appendChild(th);
+  });
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  let section = null;
+
+  YAMS_CATEGORY_DEFS.forEach((cat) => {
+    if (cat.section !== section) {
+      section = cat.section;
+      const sepRow = document.createElement('tr');
+      sepRow.className = 'yams-section-row';
+      const sepCell = document.createElement('td');
+      sepCell.colSpan = seats.length + 1;
+      sepCell.textContent = section === 'upper' ? 'Section supérieure' : 'Section inférieure';
+      sepRow.appendChild(sepCell);
+      tbody.appendChild(sepRow);
+    }
+
+    const row = document.createElement('tr');
+    const labelCell = document.createElement('td');
+    labelCell.className = 'yams-row-label';
+    labelCell.textContent = cat.label;
+    row.appendChild(labelCell);
+
+    seats.forEach((seat) => {
+      const td = document.createElement('td');
+      const sheet = state.scoreSheets[seat] || {};
+      const filled = sheet[cat.key] !== null && sheet[cat.key] !== undefined;
+      if (filled) {
+        td.textContent = sheet[cat.key];
+        td.className = 'yams-filled';
+      } else if (seat === state.mySeat && canScore) {
+        td.textContent = computeYamsPreview(state.dice, cat.key);
+        td.className = 'yams-clickable';
+        td.title = 'Cliquez pour valider cette catégorie avec le tirage actuel.';
+        td.addEventListener('click', () => socket.emit('yams_score', { category: cat.key }));
+      } else {
+        td.textContent = '';
+        td.className = 'yams-empty-cell';
+      }
+      row.appendChild(td);
+    });
+    tbody.appendChild(row);
+  });
+
+  const bonusRow = document.createElement('tr');
+  bonusRow.className = 'yams-bonus-row';
+  const bonusLabel = document.createElement('td');
+  bonusLabel.textContent = 'Bonus (si ≥ 63)';
+  bonusRow.appendChild(bonusLabel);
+  seats.forEach((seat) => {
+    const td = document.createElement('td');
+    const totals = state.totals[seat] || { bonus: 0, upperTotal: 0 };
+    td.textContent = totals.bonus > 0 ? `+${totals.bonus}` : `${totals.upperTotal}/63`;
+    bonusRow.appendChild(td);
+  });
+  tbody.appendChild(bonusRow);
+
+  const totalRow = document.createElement('tr');
+  totalRow.className = 'yams-total-row';
+  const totalLabel = document.createElement('td');
+  totalLabel.textContent = 'Total';
+  totalRow.appendChild(totalLabel);
+  seats.forEach((seat) => {
+    const td = document.createElement('td');
+    const totals = state.totals[seat] || { grandTotal: 0 };
+    td.textContent = totals.grandTotal;
+    totalRow.appendChild(td);
+  });
+  tbody.appendChild(totalRow);
+
+  table.appendChild(tbody);
+}
+
+function renderYamsLog(state) {
+  const panel = el('yams-log-panel');
+  panel.innerHTML = '';
+  (state.log || []).forEach((line) => {
+    const d = document.createElement('div');
+    d.textContent = line;
+    panel.appendChild(d);
+  });
+  panel.scrollTop = panel.scrollHeight;
 }
