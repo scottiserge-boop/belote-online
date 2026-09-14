@@ -62,6 +62,13 @@ button:disabled { background: #6b6b58; color: #ccc; cursor: not-allowed; border-
 button:hover:not(:disabled) { background: linear-gradient(180deg, #f7e59c, #e8c454 45%, #c7a234 100%); }
 button:active:not(:disabled) { transform: translateY(1px); }
 
+.secondary-btn {
+  background: #1c5c3c; color: #fff; border-color: #0d3020; margin-top: 8px;
+  width: 100%;
+}
+.secondary-btn:hover:not(:disabled) { background: #237a4e; }
+.hint { font-size: 0.78rem; color: #8fb09c; margin: 6px 0 0; }
+
 .error { color: #ff8080; min-height: 1.2em; text-align: center; margin-top: 12px; }
 
 .lobby-seats { list-style: none; padding: 0; margin: 16px 0; }
@@ -88,6 +95,16 @@ button:active:not(:disabled) { transform: translateY(1px); }
 .hand-subtotal { font-size: 0.82rem; color: #cfe8d8; }
 .hand-subtotal .subtotal-a { color: #6fc9ff; }
 .hand-subtotal .subtotal-b { color: #ff9e6f; }
+
+/* La couleur de l'atout est l'information la plus consultée pendant une
+   manche : on l'affiche nettement plus grande que le reste de l'en-tête. */
+#trump-indicator {
+  font-size: 1.7rem;
+  font-weight: 700;
+  vertical-align: middle;
+  margin-left: 2px;
+  text-shadow: 0 0 8px rgba(212, 175, 55, 0.35);
+}
 
 .table {
   /* Hauteur déterminée par le contenu (sièges + zone de pli), jamais figée
@@ -152,10 +169,10 @@ button:active:not(:disabled) { transform: translateY(1px); }
 
 .trick-area {
   position: relative;
-  width: 230px;
+  width: 260px;
   /* Assez haut pour loger 2 cartes (haut+bas) + leurs étiquettes de nom sans
-     chevauchement : hauteur de carte (96) + étiquette (~16) + marge, x2. */
-  height: 260px;
+     chevauchement : hauteur de carte (108) + étiquette (~16) + marge, x2. */
+  height: 284px;
   border-radius: 50%;
   background: radial-gradient(ellipse at center, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 70%);
   transition: height 0.15s ease;
@@ -165,7 +182,7 @@ button:active:not(:disabled) { transform: translateY(1px); }
 
 .trick-slot {
   position: absolute;
-  width: 64px;
+  width: 72px;
   display: flex; flex-direction: column; align-items: center; gap: 4px;
 }
 .trick-slot.pos-bottom { left: 50%; bottom: 0; transform: translateX(-50%); }
@@ -174,9 +191,9 @@ button:active:not(:disabled) { transform: translateY(1px); }
 .trick-slot.pos-right { right: 0; top: 50%; transform: translateY(-50%); }
 
 .trick-card {
-  width: 64px; height: 96px; border-radius: 6px; background: #fff; color: #111;
+  width: 72px; height: 108px; border-radius: 6px; background: #fff; color: #111;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  font-weight: 700; font-size: 1.1rem; box-shadow: 0 3px 8px rgba(0,0,0,0.4);
+  font-weight: 700; font-size: 1.25rem; box-shadow: 0 3px 8px rgba(0,0,0,0.4);
   border: 3px solid transparent;
 }
 .trick-card.red { color: #c40000; }
@@ -263,10 +280,10 @@ button:active:not(:disabled) { transform: translateY(1px); }
 .hand-slot .card { margin: 0; }
 
 .card {
-  width: 64px; height: 96px; background: linear-gradient(180deg, #ffffff 0%, #f4f0e6 100%);
-  color: #111; border-radius: 8px;
+  width: 72px; height: 108px; background: linear-gradient(180deg, #ffffff 0%, #f4f0e6 100%);
+  color: #111; border-radius: 9px;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  font-weight: 700; font-size: 1.2rem; margin: 4px;
+  font-weight: 700; font-size: 1.35rem; margin: 4px;
   box-shadow: 0 3px 6px rgba(0,0,0,0.4), inset 0 0 0 1px rgba(0,0,0,0.06);
   cursor: pointer; transition: transform 0.1s ease, box-shadow 0.1s ease;
   border: 2px solid transparent;
@@ -280,7 +297,7 @@ button:active:not(:disabled) { transform: translateY(1px); }
 .card.playable { border-color: rgba(212,175,55,0.55); }
 .card.disabled { opacity: 0.45; cursor: not-allowed; filter: grayscale(0.15); }
 .card.disabled:hover, .card.disabled:active { transform: none; box-shadow: 0 3px 6px rgba(0,0,0,0.4); }
-.card .suit { font-size: 1.4rem; }
+.card .suit { font-size: 1.55rem; }
 
 /* Le bouton Journal vit dans l'en-tête (pas en position fixe) pour ne
    jamais risquer de chevaucher la main du joueur en bas de l'écran. */
@@ -317,28 +334,29 @@ button:active:not(:disabled) { transform: translateY(1px); }
 
 @media (max-width: 640px) {
   .home-forms { flex-direction: column; }
-  .card { width: 48px; height: 72px; font-size: 1rem; margin: 3px; }
+  .card { width: 56px; height: 84px; font-size: 1.1rem; margin: 3px; }
   /* La zone de pli doit être assez haute pour loger 2 cartes + leurs
      étiquettes (haut/bas) sans qu'elles ne se chevauchent : hauteur de carte
-     (72) + étiquette (~14) + marge, multiplié par 2 emplacements. */
-  .trick-area { width: 190px; height: 200px; }
-  .trick-slot { width: 48px; gap: 2px; }
-  .trick-area .trick-card { width: 48px; height: 72px; font-size: 1rem; }
+     (84) + étiquette (~14) + marge, multiplié par 2 emplacements. */
+  .trick-area { width: 222px; height: 224px; }
+  .trick-slot { width: 56px; gap: 2px; }
+  .trick-area .trick-card { width: 56px; height: 84px; font-size: 1.1rem; }
   .trick-slot .from { font-size: 0.65rem; }
   .game-header { padding: 8px 12px; font-size: 0.8rem; gap: 6px 10px; }
   .scores span { margin-right: 8px; }
   .last-trick-mini { width: 24px; height: 36px; font-size: 0.54rem; }
   .last-trick-label { font-size: 0.6rem; }
   .hand-subtotal { font-size: 0.74rem; }
+  #trump-indicator { font-size: 1.3rem; }
 }
 
 /* Petits téléphones (iPhone SE, etc.) : encore un cran plus compact. */
 @media (max-width: 400px) {
-  .card { width: 40px; height: 60px; font-size: 0.85rem; margin: 2px; }
-  .card .suit { font-size: 1.05rem; }
-  .trick-area { width: 160px; height: 172px; }
-  .trick-slot { width: 40px; gap: 1px; }
-  .trick-area .trick-card { width: 40px; height: 60px; font-size: 0.85rem; }
+  .card { width: 46px; height: 69px; font-size: 0.95rem; margin: 2px; }
+  .card .suit { font-size: 1.15rem; }
+  .trick-area { width: 184px; height: 190px; }
+  .trick-slot { width: 46px; gap: 1px; }
+  .trick-area .trick-card { width: 46px; height: 69px; font-size: 0.95rem; }
   .trick-slot .from { font-size: 0.6rem; }
   .mini-card { width: 16px; height: 24px; margin-left: -8px; }
   .seat-name { font-size: 0.8rem; }
