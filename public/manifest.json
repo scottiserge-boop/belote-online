@@ -1,7 +1,7 @@
 {
-  "name": "Belote en ligne",
-  "short_name": "Belote",
-  "description": "Belote classique à 4 joueurs, en équipes de 2, en temps réel.",
+  "name": "Belote & Yams en ligne",
+  "short_name": "Belote/Yams",
+  "description": "Belote (4 joueurs, équipes de 2) et Yams (2 à 6 joueurs) en temps réel.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
