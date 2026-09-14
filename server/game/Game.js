@@ -70,10 +70,45 @@ class Game {
       this.players[existing].connected = true;
       return existing;
     }
+
+    // Reprise de partie : si un siège porte déjà exactement le même pseudo et
+    // est actuellement déconnecté (onglet fermé par erreur, perte de réseau...),
+    // on redonne ce siège (et donc sa main en cours) à ce joueur plutôt que
+    // de lui en attribuer un nouveau.
+    const cleanName = (name || '').trim();
+    if (cleanName) {
+      const reconnectSeat = this.players.findIndex(
+        (p) => p && !p.connected && !p.isBot && p.name === cleanName
+      );
+      if (reconnectSeat !== -1) {
+        this.players[reconnectSeat].id = socketId;
+        this.players[reconnectSeat].connected = true;
+        this.addLogEntry(`${cleanName} reprend sa place (siège ${reconnectSeat + 1}).`);
+        return reconnectSeat;
+      }
+    }
+
     const freeSeat = this.players.findIndex((p) => p === null);
     if (freeSeat === -1) return -1;
-    this.players[freeSeat] = { id: socketId, name: name || `Joueur ${freeSeat + 1}`, connected: true };
+    this.players[freeSeat] = { id: socketId, name: cleanName || `Joueur ${freeSeat + 1}`, connected: true };
     this.addLogEntry(`${this.players[freeSeat].name} rejoint la table (siège ${freeSeat + 1}).`);
+    return freeSeat;
+  }
+
+  // Remplace un siège libre par un joueur IA : il n'a pas de socket réel, mais
+  // se comporte comme un joueur connecté en permanence (voir server.js pour la
+  // logique de jeu automatique).
+  addBotPlayer(name) {
+    const freeSeat = this.players.findIndex((p) => p === null);
+    if (freeSeat === -1) return -1;
+    const botId = `bot-${this.roomId}-${freeSeat}-${Math.random().toString(36).slice(2, 8)}`;
+    this.players[freeSeat] = {
+      id: botId,
+      name: name || `Robot ${freeSeat + 1}`,
+      connected: true,
+      isBot: true,
+    };
+    this.addLogEntry(`${this.players[freeSeat].name} (IA) rejoint la table (siège ${freeSeat + 1}).`);
     return freeSeat;
   }
 
@@ -157,10 +192,10 @@ class Game {
         this.biddingPasses += 1;
         this.addLogEntry(`${this.players[seat].name} passe (1er tour).`);
         if (this.biddingPasses >= 4) {
-          // Personne ne prend la retourne : elle revient au donneur, 2e tour d'enchères.
-          this.hands[this.dealer].push(this.retourneCard);
+          // Personne ne prend la retourne au 1er tour : elle reste "en jeu" (on ne
+          // la donne pas encore au donneur). C'est le premier joueur qui annonce
+          // une couleur au 2e tour qui la ramassera dans sa main (voir plus bas).
           this.refusedSuit = this.retourneCard.suit;
-          this.retourneCard = null;
           this.biddingRound = 2;
           this.biddingPasses = 0;
           this.biddingTurnSeat = nextSeat(this.dealer);
@@ -204,7 +239,11 @@ class Game {
         return { ok: false, error: 'Vous ne pouvez pas rappeler la couleur refusée au premier tour.' };
       }
       this.bidHistory.push({ seat, action: 'call', suit, round: 2 });
-      this.addLogEntry(`${this.players[seat].name} prend à ${suit} (2e tour).`);
+      // Le premier joueur à annoncer une couleur au 2e tour ramasse la carte
+      // retournée dans sa main (elle n'a jamais été donnée au donneur).
+      this.hands[seat].push(this.retourneCard);
+      this.retourneCard = null;
+      this.addLogEntry(`${this.players[seat].name} prend à ${suit} (2e tour) et ramasse la carte retournée.`);
       this._setTrumpAndStartPlay(seat, suit);
       return { ok: true };
     }
@@ -358,7 +397,7 @@ class Game {
   getStateFor(seat) {
     const players = this.players.map((p, i) =>
       p
-        ? { seat: i, name: p.name, connected: p.connected, cardCount: this.hands[i].length }
+        ? { seat: i, name: p.name, connected: p.connected, isBot: !!p.isBot, cardCount: this.hands[i].length }
         : null
     );
 
