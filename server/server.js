@@ -9,6 +9,11 @@ const { Server } = require('socket.io');
 const { RoomManager } = require('./rooms');
 const { PHASES, teamOf } = require('./game/Game');
 const { cardOrderIndex, cardPoints } = require('./game/deck');
+const {
+  PHASES: YAMS_PHASES,
+  CATEGORY_KEYS: YAMS_CATEGORY_KEYS,
+  computeCategoryScore: computeYamsCategoryScore,
+} = require('./game/YamsGame');
 
 const PORT = process.env.PORT || 3000;
 const AUTOPLAY_CHECK_MS = 2500;
@@ -145,8 +150,105 @@ function pickSmartCard(game, seat) {
   return sorted[0];
 }
 
+// --- IA pour le Yams ---------------------------------------------------
+
+// Catégories à sacrifier en dernier recours (quand aucune catégorie libre ne
+// rapporte de points avec le tirage actuel), de la moins précieuse à la plus
+// précieuse à garder pour plus tard.
+const YAMS_SACRIFICE_ORDER = [
+  'chance', 'as', 'deux', 'grandeSuite', 'petiteSuite', 'full',
+  'trois', 'brelan', 'quatre', 'cinq', 'carre', 'six', 'yams',
+];
+
+// Décide quels dés garder avant de relancer : on vise le groupe de dés
+// identiques le plus nombreux (brelan/carré/yams), sinon une suite si assez
+// de valeurs différentes sont déjà réunies, sinon on relance tout.
+function decideYamsHold(game) {
+  const dice = game.dice;
+  const counts = [0, 0, 0, 0, 0, 0, 0];
+  for (const d of dice) counts[d] += 1;
+  let modeVal = 0;
+  let modeCount = 0;
+  for (let v = 1; v <= 6; v++) {
+    if (counts[v] > modeCount) {
+      modeCount = counts[v];
+      modeVal = v;
+    }
+  }
+
+  if (modeCount >= 2) {
+    return dice.map((d) => d === modeVal);
+  }
+
+  const uniqueVals = [...new Set(dice)];
+  if (uniqueVals.length >= 4) {
+    const seen = new Set();
+    return dice.map((d) => {
+      if (seen.has(d)) return false;
+      seen.add(d);
+      return true;
+    });
+  }
+
+  return [false, false, false, false, false];
+}
+
+// Choisit la catégorie à valider avec le tirage courant : la meilleure
+// catégorie encore libre, ou à défaut la moins coûteuse à sacrifier.
+function pickYamsCategory(game, seat) {
+  const sheet = game.scoreSheets[seat];
+  const available = YAMS_CATEGORY_KEYS.filter((c) => sheet[c] === null);
+  let best = available[0];
+  let bestScore = -1;
+  for (const c of available) {
+    const score = computeYamsCategoryScore(game.dice, c);
+    if (score > bestScore) {
+      bestScore = score;
+      best = c;
+    }
+  }
+  if (bestScore > 0) return best;
+  for (const c of YAMS_SACRIFICE_ORDER) {
+    if (available.includes(c)) return c;
+  }
+  return available[0];
+}
+
+// Une "pensée" de robot par tick d'autoplay (toutes les 2,5s) : lance les
+// dés, ou décide des dés à garder puis relance, ou marque la meilleure
+// catégorie une fois les 3 lancers épuisés. Étalé sur plusieurs ticks pour
+// garder un rythme proche de celui d'un joueur humain.
+function yamsBotTurnStep(game, seat) {
+  if (game.rollsLeft > 0) {
+    if (game.hasRolled) {
+      const mask = decideYamsHold(game);
+      game.setHeldMask(seat, mask);
+    }
+    game.rollDice(seat);
+  } else {
+    const category = pickYamsCategory(game, seat);
+    game.scoreCategory(seat, category);
+  }
+}
+
 function autoplayTick() {
   for (const game of rooms.rooms.values()) {
+    if (game.type === 'yams') {
+      if (game.phase !== YAMS_PHASES.PLAYING) continue;
+      const seat = game.currentTurnSeat;
+      const player = game.players[seat];
+      if (player && player.isBot) {
+        yamsBotTurnStep(game, seat);
+        broadcastState(game);
+      } else if (player && !player.connected) {
+        markAndMaybeAct(game, seat, () => {
+          yamsBotTurnStep(game, seat);
+          broadcastState(game);
+        });
+      }
+      continue;
+    }
+
     if (game.phase === PHASES.BIDDING) {
       const seat = game.biddingTurnSeat;
       const player = game.players[seat];
@@ -202,8 +304,8 @@ setInterval(() => rooms.pruneEmptyRooms(), 60000);
 io.on('connection', (socket) => {
   let currentRoomId = null;
 
-  socket.on('create_room', ({ name, targetScore } = {}, cb) => {
-    const game = rooms.createRoom(targetScore && targetScore > 0 ? targetScore : 501);
+  socket.on('create_room', ({ name, targetScore, gameType } = {}, cb) => {
+    const game = rooms.createRoom(gameType, targetScore && targetScore > 0 ? targetScore : 501);
     const seat = game.addPlayer(socket.id, name);
     socket.join(game.roomId);
     currentRoomId = game.roomId;
@@ -220,13 +322,15 @@ io.on('connection', (socket) => {
     const alreadySeated = game.seatOfSocket(socket.id) !== -1;
     const cleanName = (name || '').trim();
     // Une reprise de partie (même pseudo qu'un siège actuellement déconnecté)
-    // doit être acceptée même si le salon affiche déjà 4 sièges occupés.
+    // doit être acceptée même si le salon affiche déjà tous ses sièges occupés.
     const isReconnect =
       !alreadySeated &&
       cleanName &&
       game.players.some((p) => p && !p.connected && !p.isBot && p.name === cleanName);
     if (!alreadySeated && !isReconnect && game.isFull()) {
-      if (typeof cb === 'function') cb({ ok: false, error: 'Ce salon est déjà complet (4 joueurs).' });
+      if (typeof cb === 'function') {
+        cb({ ok: false, error: `Ce salon est déjà complet (${game.maxPlayers} joueurs).` });
+      }
       return;
     }
     const seat = game.addPlayer(socket.id, name);
@@ -243,7 +347,9 @@ io.on('connection', (socket) => {
       return;
     }
     if (game.isFull()) {
-      if (typeof cb === 'function') cb({ ok: false, error: 'Ce salon est déjà complet (4 joueurs).' });
+      if (typeof cb === 'function') {
+        cb({ ok: false, error: `Ce salon est déjà complet (${game.maxPlayers} joueurs).` });
+      }
       return;
     }
     const seat = game.addBotPlayer();
@@ -258,6 +364,13 @@ io.on('connection', (socket) => {
   socket.on('start_game', () => {
     const game = rooms.getRoom(currentRoomId);
     if (!game) return;
+    if (game.type === 'yams') {
+      if (game.canStart()) {
+        game.startGame();
+        broadcastState(game);
+      }
+      return;
+    }
     if (game.phase === PHASES.LOBBY && game.isFull()) {
       game.startNewHand();
       broadcastState(game);
@@ -266,16 +379,57 @@ io.on('connection', (socket) => {
 
   socket.on('next_hand', () => {
     const game = rooms.getRoom(currentRoomId);
-    if (!game) return;
+    if (!game || game.type !== 'belote') return;
     if (game.phase === PHASES.HAND_END) {
       game.startNewHand();
       broadcastState(game);
     }
   });
 
+  // --- Événements spécifiques au Yams ---------------------------------------
+
+  socket.on('yams_roll', () => {
+    const game = rooms.getRoom(currentRoomId);
+    if (!game || game.type !== 'yams') return;
+    const seat = game.seatOfSocket(socket.id);
+    if (seat === -1) return;
+    const result = game.rollDice(seat);
+    if (!result.ok) {
+      socket.emit('error_message', result.error);
+      return;
+    }
+    broadcastState(game);
+  });
+
+  socket.on('yams_toggle_hold', ({ index } = {}) => {
+    const game = rooms.getRoom(currentRoomId);
+    if (!game || game.type !== 'yams') return;
+    const seat = game.seatOfSocket(socket.id);
+    if (seat === -1) return;
+    const result = game.toggleHold(seat, index);
+    if (!result.ok) {
+      socket.emit('error_message', result.error);
+      return;
+    }
+    broadcastState(game);
+  });
+
+  socket.on('yams_score', ({ category } = {}) => {
+    const game = rooms.getRoom(currentRoomId);
+    if (!game || game.type !== 'yams') return;
+    const seat = game.seatOfSocket(socket.id);
+    if (seat === -1) return;
+    const result = game.scoreCategory(seat, category);
+    if (!result.ok) {
+      socket.emit('error_message', result.error);
+      return;
+    }
+    broadcastState(game);
+  });
+
   socket.on('bid', ({ action, suit } = {}) => {
     const game = rooms.getRoom(currentRoomId);
-    if (!game) return;
+    if (!game || game.type !== 'belote') return;
     const seat = game.seatOfSocket(socket.id);
     if (seat === -1) return;
     const result = game.bid(seat, action, suit);
@@ -288,7 +442,7 @@ io.on('connection', (socket) => {
 
   socket.on('play_card', ({ cardId } = {}) => {
     const game = rooms.getRoom(currentRoomId);
-    if (!game) return;
+    if (!game || game.type !== 'belote') return;
     const seat = game.seatOfSocket(socket.id);
     if (seat === -1) return;
     const result = game.playCard(seat, cardId);
