@@ -1,8 +1,13 @@
-# Belote en ligne 🃏
+# Belote & Yams en ligne 🃏🎲
 
-Prototype jouable de Belote classique à 4 joueurs (2 équipes), en temps réel,
-avec un serveur Node.js (Express + Socket.io) et un client web simple
-(HTML/CSS/JS, sans framework).
+Prototype jouable regroupant **deux jeux classiques dans la même
+application** : la Belote (4 joueurs, 2 équipes) et le Yams/Yahtzee (2 à 6
+joueurs) — un serveur Node.js (Express + Socket.io) et un client web simple
+(HTML/CSS/JS, sans framework), sans base de données.
+
+À l'écran d'accueil, deux onglets ("🃏 Belote" / "🎲 Yams") permettent de
+choisir le jeu au moment de créer un salon ; rejoindre un salon existant se
+fait toujours avec juste un pseudo et un code, quel que soit le jeu.
 
 Interface façon table de casino en ligne : feutre vert avec cadre bois/or,
 dos de cartes décoratifs pour les adversaires, et votre propre jeu affiché
@@ -11,6 +16,10 @@ vrai jeu tenu en main), le tout entièrement adapté au mobile. Une fois
 l'atout connu, vos cartes sont automatiquement triées avec l'atout à
 gauche et les autres couleurs alternées rouge/noir pour une lecture plus
 rapide de la main.
+
+Le Yams reprend la même esthétique : dés à faces classiques (⚀-⚅), feuille
+de score commune à tous les joueurs avec aperçu en direct de ce que
+rapporterait chaque catégorie avant de valider.
 
 ## Lancer le jeu
 
@@ -122,47 +131,81 @@ salon ; elle ne change plus au fil du temps, contrairement au tunnel.
   place vide par une IA" permet de faire occuper un siège libre d'un salon
   par un robot, qui annonce et joue automatiquement à sa place (utile pour
   compléter une table à 4 quand un seul joueur est disponible). Un robot est
-  repéré par l'icône 🤖 à côté de son nom, dans le salon comme en jeu.
+  repéré par l'icône 🤖 à côté de son nom, dans le salon comme en jeu. Les
+  robots enchérissent et jouent selon la force réelle de leur main (pas au
+  hasard) : ils prennent surtout quand ils ont de bons atouts, entament
+  fort, et ne "montent" pas inutilement sur un pli déjà gagné par leur
+  partenaire.
+
+## Règles du Yams implémentées
+
+- De 2 à 6 joueurs, à tour de rôle ; chacun dispose de 5 dés et jusqu'à 3
+  lancers par tour, avec possibilité de garder ("verrouiller") certains dés
+  entre deux lancers.
+- **13 catégories** à remplir une fois chacune sur la partie (feuille
+  commune, une colonne par joueur) : section supérieure (As à Six, somme des
+  dés de cette valeur) et section inférieure (Brelan, Carré, Full à 25 pts,
+  Petite suite à 30 pts, Grande suite à 40 pts, Yams à 50 pts, Chance).
+- **Bonus de 35 points** si le total de la section supérieure atteint 63
+  points ou plus.
+- Un aperçu du score que rapporterait chaque catégorie encore libre
+  s'affiche en direct avec le tirage courant ; cliquer dessus valide ce
+  choix et passe la main au joueur suivant.
+- La partie se termine quand tous les joueurs ont rempli leurs 13
+  catégories ; le classement final se fait au total le plus élevé.
+- Mêmes mécanismes de robot IA, reprise de partie et reconnexion tolérée
+  que pour la Belote.
 
 ## Structure du projet
 
 ```
 belote-online/
 ├── server/
-│   ├── server.js       # Serveur Express + Socket.io, événements réseau
-│   ├── rooms.js         # Gestion des salons (création, codes, nettoyage)
+│   ├── server.js         # Serveur Express + Socket.io, événements réseau (Belote + Yams)
+│   ├── rooms.js           # Gestion des salons (création selon le jeu, codes, nettoyage)
 │   └── game/
-│       ├── deck.js      # Cartes, valeurs de points, ordres de force
-│       ├── rules.js     # Règles de coups légaux, calcul du gagnant d'un pli
-│       └── Game.js       # État complet d'une partie (distribution, enchères, score)
+│       ├── deck.js        # Cartes, valeurs de points, ordres de force (Belote)
+│       ├── rules.js       # Règles de coups légaux, calcul du gagnant d'un pli (Belote)
+│       ├── Game.js         # État complet d'une partie de Belote (distribution, enchères, score)
+│       └── YamsGame.js     # État complet d'une partie de Yams (dés, feuille de score, tours)
 ├── public/
-│   ├── index.html       # Écrans (accueil, salon, table de jeu)
-│   ├── style.css         # Design responsive (bureau + mobile)
-│   ├── app.js            # Client Socket.io, rendu de la table et de la main
-│   ├── manifest.json     # Manifeste PWA ("Ajouter à l'écran d'accueil")
-│   └── icons/            # Icônes de l'application (192/512px, apple-touch-icon)
+│   ├── index.html         # Écrans (accueil avec choix du jeu, salon, tables de jeu)
+│   ├── style.css           # Design responsive (bureau + mobile), Belote + Yams
+│   ├── app.js              # Client Socket.io, rendu des deux jeux
+│   ├── manifest.json       # Manifeste PWA ("Ajouter à l'écran d'accueil")
+│   └── icons/              # Icônes de l'application (192/512px, apple-touch-icon)
 ├── test/
-│   ├── simulate.js        # Simulation de 25 parties complètes avec bots aléatoires
-│   └── integration.js     # Test bout-en-bout (vrai serveur + 4 clients Socket.io)
+│   ├── simulate.js          # Simulation de 25 parties de Belote (bots aléatoires)
+│   ├── simulate-yams.js      # Simulation de 50 parties de Yams (2 à 6 joueurs, bots)
+│   ├── integration.js        # Test bout-en-bout Belote (vrai serveur + 4 clients Socket.io)
+│   └── integration-yams.js   # Test bout-en-bout Yams (vrai serveur + 3 clients Socket.io)
 └── package.json
 ```
 
 ## Tests
 
 ```bash
-npm test                 # simulation du moteur de jeu (25 parties, bots aléatoires)
-npm run test:integration # test bout-en-bout serveur + Socket.io (nécessite npm install au préalable)
+npm test                       # simulation du moteur Belote (25 parties, bots aléatoires)
+npm run test:yams              # simulation du moteur Yams (50 parties, 2 à 6 joueurs)
+npm run test:integration       # test bout-en-bout Belote (serveur + Socket.io)
+npm run test:integration-yams  # test bout-en-bout Yams (serveur + Socket.io)
+npm run test:all                # les quatre suites d'un coup
 ```
 
-Le script de simulation vérifie qu'aucune règle n'est violée et que chaque
-manche totalise bien 162 points de cartes. Le test d'intégration démarre le
-vrai serveur, connecte 4 clients, crée un salon, lance une partie et joue un
-pli complet pour valider toute la chaîne réseau.
+Les scripts de simulation vérifient qu'aucune règle n'est violée (pour la
+Belote : que chaque manche totalise bien 162 points de cartes ; pour le
+Yams : que les 13 catégories sont remplies sans blocage). Les tests
+d'intégration démarrent le vrai serveur, connectent plusieurs clients,
+créent un salon et jouent une séquence représentative pour valider toute la
+chaîne réseau.
 
 ## Pistes d'évolution
 
-- Ajouter la variante Coinche (contrats, surcoinche, annonces).
+- Ajouter la variante Coinche (contrats, surcoinche, annonces) pour la
+  Belote.
 - Ajouter un bouton d'annonce manuelle de Belote/Rebelote (actuellement
   automatique) et d'autres annonces (Tierce, Cinquante, Cent…).
 - Persistance des parties (reprise après redémarrage du serveur).
-- Mode spectateur, historique des manches consultable, chat entre joueurs.
+- Mode spectateur, historique des manches/parties consultable, chat entre
+  joueurs.
+- D'autres jeux de société classiques sur le même principe de salon partagé.
