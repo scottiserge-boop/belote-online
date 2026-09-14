@@ -23,6 +23,9 @@ function nextSeat(seat) {
 
 class Game {
   constructor(roomId, targetScore = 501) {
+    this.type = 'belote'; // distingue ce salon d'un salon Yams pour le serveur et le client
+    this.maxPlayers = 4;
+    this.minPlayers = 4; // la Belote se joue toujours à 4 (2 équipes fixes)
     this.roomId = roomId;
     this.targetScore = targetScore;
     this.phase = PHASES.LOBBY;
@@ -122,6 +125,12 @@ class Game {
 
   isFull() {
     return this.players.every((p) => p !== null);
+  }
+
+  // Condition pour activer le bouton "Démarrer" côté client : pour la Belote,
+  // il faut impérativement les 4 sièges (2 équipes fixes de 2).
+  canStart() {
+    return this.phase === PHASES.LOBBY && this.isFull();
   }
 
   connectedCount() {
@@ -402,6 +411,10 @@ class Game {
     );
 
     return {
+      type: this.type,
+      maxPlayers: this.maxPlayers,
+      minPlayers: this.minPlayers,
+      canStart: this.canStart(),
       roomId: this.roomId,
       phase: this.phase,
       players,
