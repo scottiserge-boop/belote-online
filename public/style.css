@@ -22,7 +22,7 @@ body {
    s'empiler verticalement en pleine largeur, contrairement aux écrans
    d'accueil/salon qui centrent une seule carte : on désactive donc ici le
    centrage flex hérité de .screen. */
-#screen-game.screen {
+#screen-game.screen, #screen-game-yams.screen {
   display: block;
   min-height: 100vh;
   min-height: 100dvh;
@@ -68,6 +68,19 @@ button:active:not(:disabled) { transform: translateY(1px); }
 }
 .secondary-btn:hover:not(:disabled) { background: #237a4e; }
 .hint { font-size: 0.78rem; color: #8fb09c; margin: 6px 0 0; }
+
+/* Onglets de sélection du jeu (Belote / Yams) sur l'écran d'accueil. */
+.game-type-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+.game-tab {
+  flex: 1; padding: 10px 8px; font-size: 0.9rem;
+  background: #16452e; color: #cfe8d8; border: 1px solid #0d3020;
+  box-shadow: none; min-height: 40px;
+}
+.game-tab:hover:not(:disabled) { background: #1c5c3c; }
+.game-tab.active {
+  background: linear-gradient(180deg, #f3da84 0%, #d4af37 45%, #b8912a 100%);
+  color: #2b2205; border-color: #8a6a1f;
+}
 
 .error { color: #ff8080; min-height: 1.2em; text-align: center; margin-top: 12px; }
 
@@ -362,4 +375,71 @@ button:active:not(:disabled) { transform: translateY(1px); }
   .seat-name { font-size: 0.8rem; }
   .game-header { font-size: 0.72rem; }
   .home-card, .lobby-card { padding: 20px; }
+}
+
+/* ============================= Yams ==================================== */
+
+.yams-turn-indicator { font-size: 1rem; font-weight: 700; color: #cfe8d8; }
+.yams-turn-indicator.my-turn { color: #d4af37; text-shadow: 0 0 8px rgba(212, 175, 55, 0.4); }
+
+.yams-game-over-banner {
+  background: linear-gradient(180deg, #16452e 0%, #0d3020 100%);
+  border-bottom: 2px solid #d4af37;
+  padding: 16px 20px; text-align: center;
+}
+.yams-game-over-banner h2 { margin: 0 0 12px; font-size: 1.15rem; }
+
+.yams-board {
+  display: flex; flex-wrap: wrap; gap: 24px;
+  padding: 20px; align-items: flex-start; justify-content: center;
+}
+
+.yams-dice-area {
+  flex: 0 0 auto; width: 100%; max-width: 380px;
+  background: #103d28; border-radius: 12px; padding: 16px;
+  text-align: center;
+}
+.yams-dice { display: flex; justify-content: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.yams-die {
+  width: 58px; height: 58px; border-radius: 10px;
+  background: linear-gradient(180deg, #ffffff 0%, #f4f0e6 100%);
+  color: #111; font-size: 2.4rem; line-height: 58px;
+  box-shadow: 0 3px 6px rgba(0,0,0,0.4), inset 0 0 0 1px rgba(0,0,0,0.06);
+  border: 2px solid transparent;
+  user-select: none; -webkit-user-select: none;
+}
+.yams-die.empty { background: #2a4438; color: transparent; box-shadow: none; }
+.yams-die.clickable { cursor: pointer; }
+.yams-die.clickable:hover { transform: translateY(-3px); }
+.yams-die.held { border-color: #d4af37; box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.35), 0 3px 6px rgba(0,0,0,0.4); }
+.yams-roll-controls { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; }
+.yams-rolls-left { font-size: 0.85rem; color: #cfe8d8; }
+
+.yams-scoresheet-wrap { flex: 1 1 420px; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.yams-scoresheet { border-collapse: collapse; width: 100%; background: #103d28; border-radius: 8px; overflow: hidden; font-size: 0.85rem; }
+.yams-scoresheet th, .yams-scoresheet td {
+  padding: 7px 10px; text-align: center; border-bottom: 1px solid #0a2c1c; white-space: nowrap;
+}
+.yams-scoresheet thead th { background: #0d3020; color: #cfe8d8; font-size: 0.8rem; position: sticky; top: 0; }
+.yams-scoresheet thead th.yams-col-turn { color: #d4af37; }
+.yams-row-label { text-align: left; color: #cfe8d8; }
+.yams-section-row td {
+  text-align: left; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em;
+  color: #8fb09c; background: #0a2c1c; padding: 4px 10px;
+}
+.yams-filled { color: #f1f1f1; font-weight: 600; }
+.yams-empty-cell { color: #4a6b5a; }
+.yams-clickable {
+  cursor: pointer; color: #d4af37; font-weight: 700;
+  background: rgba(212, 175, 55, 0.12); border-radius: 4px;
+}
+.yams-clickable:hover { background: rgba(212, 175, 55, 0.28); }
+.yams-bonus-row td { color: #8fb09c; font-size: 0.78rem; }
+.yams-total-row td { font-weight: 700; color: #d4af37; border-top: 2px solid #6b4423; border-bottom: none; }
+
+@media (max-width: 640px) {
+  .yams-board { padding: 12px; gap: 16px; }
+  .yams-die { width: 46px; height: 46px; font-size: 1.9rem; line-height: 46px; }
+  .yams-scoresheet { font-size: 0.76rem; }
+  .yams-scoresheet th, .yams-scoresheet td { padding: 5px 7px; }
 }
